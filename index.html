@@ -6,12 +6,12 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#1a1a2e">
-    <title>STBE Image site</title>
+    <title>STBE</title>
     <style>
         :root { --safe-bottom: env(safe-area-inset-bottom, 16px); --safe-top: env(safe-area-inset-top, 0px); --max-width: 1000px; }
         * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; -webkit-user-select:none; user-select:none; }
         input,textarea,select { -webkit-user-select:text; user-select:text; }
-        body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%); min-height:100vh; min-height:100dvh; display:flex; justify-content:center; align-items:center; padding:16px; }
+        body { font-family:-apple-system,BlinkMacSystemFont,'Segoe IO',Roboto,sans-serif; background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%); min-height:100vh; min-height:100dvh; display:flex; justify-content:center; align-items:center; padding:16px; }
         .container { width:100%; max-width:var(--max-width); background:rgba(255,255,255,0.05); backdrop-filter:blur(20px); border-radius:24px; box-shadow:0 20px 60px rgba(0,0,0,0.5); overflow:hidden; border:1px solid rgba(255,255,255,0.1); display:flex; flex-direction:column; height:92vh; height:92dvh; }
         .header { background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; padding:6px 16px; padding-top:max(6px,var(--safe-top)); display:flex; justify-content:space-between; align-items:center; flex-shrink:0; z-index:20; }
         .header-logo { font-size:20px; font-weight:800; letter-spacing:2px; }
@@ -135,7 +135,7 @@
                 <div class="home-section">
                     <h3>🔑 API 配置</h3>
                     <div class="field"><label>API Key</label><input type="text" id="apiKey" placeholder="sk-..."></div>
-                    <div class="field"><label>API Base URL</label><input type="text" id="apiBaseUrl" placeholder="https://api.apimart.ai/v1"></div>
+                    <div class="field"><label>API Base URL</label><input type="text" id="apiBaseUrl" placeholder="https://sekirocloud.site:8443/v1"></div>
                 </div>
                 <div class="home-section">
                     <h3>☁️ GitHub 同步配置</h3>
@@ -211,7 +211,21 @@ const STORAGE_HISTORY = 'stbe_history';
 const STORAGE_CHATS = 'stbe_chats';
 const STORAGE_PENDING = 'stbe_pending';
 
-let config = { apiKey:'', baseUrl:'https://api.apimart.ai/v1', githubUser:'', githubRepo:'', githubToken:'' };
+// 云栖小铺 size 参数映射（比例 → 像素）
+const SIZE_MAP = {
+    'auto': { '1k': '1024x1024', '2k': '2048x2048', '4k': '4096x4096' },
+    '1:1': { '1k': '1024x1024', '2k': '2048x2048' },
+    '16:9': { '1k': '1536x864', '2k': '2048x1152', '4k': '3840x2160' },
+    '9:16': { '1k': '864x1536', '2k': '1152x2048', '4k': '2160x3840' },
+    '4:3': { '1k': '1024x768', '2k': '2048x1536' },
+    '3:4': { '1k': '768x1024', '2k': '1536x2048' },
+    '3:2': { '1k': '1536x1024', '2k': '2048x1360' },
+    '2:3': { '1k': '1024x1536', '2k': '1360x2048' },
+    '21:9': { '1k': '2016x864', '2k': '2688x1152', '4k': '3840x1648' },
+    '9:21': { '1k': '864x2016', '2k': '1152x2688', '4k': '1648x3840' }
+};
+
+let config = { apiKey:'', baseUrl:'https://sekirocloud.site:8443/v1', githubUser:'', githubRepo:'', githubToken:'' };
 let generationHistory = [];
 let conversations = [];
 let currentConversationId = null;
@@ -220,8 +234,8 @@ let pendingTasks = {};
 let currentTab = 'home';
 
 function init() { loadConfig(); loadHistory(); loadChats(); loadPendingTasks(); setupUpload(); setupPaste(); setupChatInput(); updateAllUI(); checkPendingTasks(); if(isSyncEnabled())setTimeout(()=>pullAllFromCloud(),1500); }
-function loadConfig(){const s=localStorage.getItem(STORAGE_CONFIG);if(s)config=JSON.parse(s);document.getElementById('apiKey').value=config.apiKey||'';document.getElementById('apiBaseUrl').value=config.baseUrl||'https://api.apimart.ai/v1';document.getElementById('githubUser').value=config.githubUser||'';document.getElementById('githubRepo').value=config.githubRepo||'';document.getElementById('githubToken').value=config.githubToken||'';}
-function saveAllConfig(){config.apiKey=document.getElementById('apiKey').value.trim();config.baseUrl=document.getElementById('apiBaseUrl').value.trim()||'https://api.apimart.ai/v1';config.githubUser=document.getElementById('githubUser').value.trim();config.githubRepo=document.getElementById('githubRepo').value.trim();config.githubToken=document.getElementById('githubToken').value.trim();localStorage.setItem(STORAGE_CONFIG,JSON.stringify(config));updateHomeStatus();updateStatus('✅ 配置已保存');}
+function loadConfig(){const s=localStorage.getItem(STORAGE_CONFIG);if(s)config=JSON.parse(s);document.getElementById('apiKey').value=config.apiKey||'';document.getElementById('apiBaseUrl').value=config.baseUrl||'https://sekirocloud.site:8443/v1';document.getElementById('githubUser').value=config.githubUser||'';document.getElementById('githubRepo').value=config.githubRepo||'';document.getElementById('githubToken').value=config.githubToken||'';}
+function saveAllConfig(){config.apiKey=document.getElementById('apiKey').value.trim();config.baseUrl=document.getElementById('apiBaseUrl').value.trim()||'https://sekirocloud.site:8443/v1';config.githubUser=document.getElementById('githubUser').value.trim();config.githubRepo=document.getElementById('githubRepo').value.trim();config.githubToken=document.getElementById('githubToken').value.trim();localStorage.setItem(STORAGE_CONFIG,JSON.stringify(config));updateHomeStatus();updateStatus('✅ 配置已保存');}
 function isSyncEnabled(){return !!(config.githubUser&&config.githubRepo&&config.githubToken);}
 function updateStatus(m){document.getElementById('statusBar').textContent=m;setTimeout(()=>{document.getElementById('statusBar').textContent='就绪';},2500);}
 
@@ -266,7 +280,10 @@ async function startGeneration(){
     const resolution=document.getElementById('resolutionSelect').value;
     const btn=document.getElementById('generateBtn');btn.disabled=true;btn.textContent='提交中...';
     document.getElementById('genStatus').textContent='提交中...';document.getElementById('resultPlaceholder').style.display='none';
-    const body={model:'gpt-image-2',prompt:prompt||'根据参考图生成',n:1,size,resolution};
+
+    // 云栖小铺使用像素值作为 size 参数
+    const pixelSize = SIZE_MAP[size]?.[resolution] || '1024x1024';
+    const body={model:'gpt-image-2',prompt:prompt||'根据参考图生成',n:1,size:pixelSize};
     if(uploadedImages.length)body.image_urls=uploadedImages.map(i=>i.data);
     const params={prompt:prompt||'根据参考图生成',size,resolution,referenceImages:uploadedImages.map(i=>({data:i.data,name:i.name})),timestamp:Date.now()};
     try{
