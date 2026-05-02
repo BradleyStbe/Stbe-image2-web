@@ -283,13 +283,26 @@ async function startGeneration(){
 
     // 云栖小铺使用像素值作为 size 参数
     const pixelSize = SIZE_MAP[size]?.[resolution] || '1024x1024';
-    const body={model:'gpt-image-2',prompt:prompt||'根据参考图生成',n:1,size:pixelSize};
+const body={model:'gpt-image-2',prompt:prompt||'根据参考图生成',n:1,size:pixelSize,response_format:'b64_json'};
     if(uploadedImages.length)body.image_urls=uploadedImages.map(i=>i.data);
     const params={prompt:prompt||'根据参考图生成',size,resolution,referenceImages:uploadedImages.map(i=>({data:i.data,name:i.name})),timestamp:Date.now()};
     try{
         const res=await fetch(`${config.baseUrl}/images/generations`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${config.apiKey}`},body:JSON.stringify(body)});
-        const data=await res.json();
-        if(data.code===200&&data.data?.[0]?.task_id){
+        const data = await res.json();
+
+// 格式一：云栖小铺同步返回（有 b64_json）
+if (data.data && data.data.length > 0 && data.data[0].b64_json) {
+    const base64Image = 'data:image/png;base64,' + data.data[0].b64_json;
+    document.getElementById('genStatus').textContent = '✅ 完成';
+    document.getElementById('resultContent').innerHTML = `<div style="color:#48bb78;font-weight:700;">✅ 生成成功</div><img src="${base64Image}" class="result-image" onclick="openModal('${base64Image}')"><div class="result-actions"><button class="btn btn-success" onclick="downloadImg('${base64Image}')">⬇️ 下载图片</button><button class="btn btn-secondary" onclick="openModal('${base64Image}')">🔍 查看大图</button><button class="btn btn-copy" onclick="copyUrl('${base64Image}')">📋 复制链接</button></div>`;
+    const fakeTask = { id: 'img_' + Date.now(), actual_time: 0, result: { images: [{ url: [base64Image] }] } };
+    saveToHistory(fakeTask, params);
+    autoPush();
+    return;
+}
+
+// 格式二：异步返回（有 task_id，APIMart / DragonCode）
+if(data.code===200&&data.data?.[0]?.task_id){
             const taskId=data.data[0].task_id;
             document.getElementById('genStatus').textContent='已提交';
             pendingTasks[taskId]={params,startTime:Date.now(),_resumed:true};
