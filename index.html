@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#1a1a2e">
-    <title>STBE</title>
+    <title>STBE Image site</title>
     <style>
         :root { --safe-bottom: env(safe-area-inset-bottom, 16px); --safe-top: env(safe-area-inset-top, 0px); --max-width: 1000px; }
         * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; -webkit-user-select:none; user-select:none; }
@@ -131,7 +131,6 @@
         </div>
 
         <div class="main-area" id="mainArea">
-            <!-- 首页 -->
             <div class="page active" id="homePage">
                 <div class="home-section">
                     <h3>🔑 API 配置</h3>
@@ -152,7 +151,6 @@
                 <div class="home-section"><h3>📊 数据状态</h3><p style="color:#8b9dc3;font-size:13px;">生图历史记录：<span id="homeHistoryCount">0</span> 条 | 聊天对话数：<span id="homeChatCount">0</span> 个</p></div>
             </div>
 
-            <!-- 生图 -->
             <div class="page" id="generatePage">
                 <div class="resume-banner" id="resumeBanner" style="display:none;">⚠️ 检测到未完成的任务 <button class="btn btn-primary" onclick="resumePendingTasks()" style="padding:5px 10px;font-size:11px;">恢复任务</button></div>
                 <div class="prompt-section">
@@ -176,7 +174,6 @@
                 <div class="result-area" id="resultArea"><h3>📋 生成结果</h3><p style="color:#8b9dc3;font-size:13px;" id="resultPlaceholder">点击「开始生成」创作图片</p><div id="resultContent"></div></div>
             </div>
 
-            <!-- 聊天 -->
             <div class="page" id="chatPage">
                 <div class="chat-container">
                     <div class="chat-topbar">
@@ -193,7 +190,6 @@
                 </div>
             </div>
 
-            <!-- 历史 -->
             <div class="page" id="historyPage">
                 <div class="action-bar" style="margin-bottom:4px;">
                     <h3 style="color:white;font-size:15px;margin:0;">📋 生成历史</h3>
@@ -248,45 +244,11 @@ async function autoPush(){if(isSyncEnabled()){await uploadToGitHub('history.json
 
 // ============ 图片上传到 GitHub（永久链接） ============
 async function uploadImageToGitHub(imageUrl, taskId){
-    try{
-        const res = await fetch(imageUrl);
-        const blob = await res.blob();
-        const base64 = await new Promise(resolve => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result.split(',')[1]);
-            reader.readAsDataURL(blob);
-        });
-        const filename = `images/${taskId}.png`;
-        const sha = await getFileSha(filename);
-        const body = { message: `Upload image ${taskId}`, content: base64 };
-        if(sha) body.sha = sha;
-        await fetch(`${GITHUB_API}/repos/${config.githubUser}/${config.githubRepo}/contents/${filename}`, {
-            method: 'PUT',
-            headers: { 'Authorization': `token ${config.githubToken}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        });
-        return `https://raw.githubusercontent.com/${config.githubUser}/${config.githubRepo}/main/${filename}`;
-    } catch(e) {
-        console.error('图片上传失败:', e);
-        return imageUrl; // 失败则返回原链接
-    }
+    try{const res=await fetch(imageUrl);const blob=await res.blob();const base64=await new Promise(r=>{const reader=new FileReader();reader.onload=()=>r(reader.result.split(',')[1]);reader.readAsDataURL(blob);});const fn=`images/${taskId}.png`;const sha=await getFileSha(fn);const body={message:`Upload ${taskId}`,content:base64};if(sha)body.sha=sha;await fetch(`${GITHUB_API}/repos/${config.githubUser}/${config.githubRepo}/contents/${fn}`,{method:'PUT',headers:{'Authorization':`token ${config.githubToken}`,'Content-Type':'application/json'},body:JSON.stringify(body)});return `https://raw.githubusercontent.com/${config.githubUser}/${config.githubRepo}/main/${fn}`;}catch(e){console.error('上传失败:',e);return imageUrl;}
 }
 
 // ============ 删除图片文件 ============
-async function deleteImageFromGitHub(taskId){
-    if(!isSyncEnabled())return;
-    try{
-        const filename = `images/${taskId}.png`;
-        const sha = await getFileSha(filename);
-        if(sha){
-            await fetch(`${GITHUB_API}/repos/${config.githubUser}/${config.githubRepo}/contents/${filename}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `token ${config.githubToken}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: `Delete image ${taskId}`, sha })
-            });
-        }
-    } catch(e) { console.error('删除图片失败:', e); }
-}
+async function deleteImageFromGitHub(taskId){if(!isSyncEnabled())return;try{const fn=`images/${taskId}.png`;const sha=await getFileSha(fn);if(sha){await fetch(`${GITHUB_API}/repos/${config.githubUser}/${config.githubRepo}/contents/${fn}`,{method:'DELETE',headers:{'Authorization':`token ${config.githubToken}`,'Content-Type':'application/json'},body:JSON.stringify({message:`Delete ${taskId}`,sha})});}}catch(e){console.error('删除失败:',e);}}
 
 // ============ 生图 ============
 function setupUpload(){const ua=document.getElementById('uploadArea');const fi=document.getElementById('imageInput');ua.addEventListener('click',(e)=>{if(e.target.closest('.remove-btn'))return;fi.click();});fi.addEventListener('change',()=>{handleFiles(Array.from(fi.files));fi.value='';});ua.addEventListener('dragover',e=>{e.preventDefault();ua.classList.add('drag-over');});ua.addEventListener('dragleave',()=>ua.classList.remove('drag-over'));ua.addEventListener('drop',e=>{e.preventDefault();ua.classList.remove('drag-over');handleFiles(Array.from(e.dataTransfer.files).filter(f=>f.type.startsWith('image/')));});}
@@ -295,36 +257,96 @@ function handleFiles(files){const imgs=files.filter(f=>f.type.startsWith('image/
 function renderPreviews(){const c=document.getElementById('previewImages');c.innerHTML=uploadedImages.length?uploadedImages.map((img,i)=>`<div class="preview-item"><img src="${img.data}"><button class="remove-btn" onclick="event.stopPropagation();removeImage(${i})">×</button></div>`).join(''):'';}
 function removeImage(i){uploadedImages.splice(i,1);renderPreviews();}
 function clearAll(){uploadedImages=[];document.getElementById('promptInput').value='';document.getElementById('resultContent').innerHTML='';document.getElementById('resultPlaceholder').style.display='block';document.getElementById('genStatus').textContent='';renderPreviews();}
-async function startGeneration(){if(!config.apiKey){alert('请先配置API Key');return;}const prompt=document.getElementById('promptInput').value.trim();if(!prompt&&!uploadedImages.length){alert('请输入描述');return;}const size=document.getElementById('sizeSelect').value;const resolution=document.getElementById('resolutionSelect').value;const btn=document.getElementById('generateBtn');btn.disabled=true;btn.textContent='提交中...';document.getElementById('genStatus').textContent='提交中...';document.getElementById('resultPlaceholder').style.display='none';const body={model:'gpt-image-2',prompt:prompt||'根据参考图生成',n:1,size,resolution};if(uploadedImages.length)body.image_urls=uploadedImages.map(i=>i.data);const params={prompt:prompt||'根据参考图生成',size,resolution,referenceImages:uploadedImages.map(i=>({data:i.data,name:i.name})),timestamp:Date.now()};try{const res=await fetch(`${config.baseUrl}/images/generations`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${config.apiKey}`},body:JSON.stringify(body)});const data=await res.json();if(data.code===200&&data.data?.[0]?.task_id){const taskId=data.data[0].task_id;document.getElementById('genStatus').textContent='已提交';pendingTasks[taskId]={params,startTime:Date.now()};savePendingTasks();showLoadingState(Date.now());startPolling(taskId,params);}else{throw new Error(data.message||'失败');}}catch(e){document.getElementById('resultContent').innerHTML=`<p style="color:#f56565;">❌ ${e.message}</p>`;}finally{btn.disabled=false;btn.textContent='🚀 开始生成';}}
-function showLoadingState(st){document.getElementById('resultContent').innerHTML=`<div class="loading-container"><div class="scroll-bar-track"><div class="scroll-bar-fill"></div></div><div class="elapsed-time">已等待 <span class="elapsed-seconds" id="elapsedSeconds">0</span> 秒</div></div>`;const iv=setInterval(()=>{const el=document.getElementById('elapsedSeconds');if(el)el.textContent=Math.floor((Date.now()-st)/1000);else clearInterval(iv);},1000);}
-function startPolling(taskId,params){let count=0;const stEl=document.getElementById('genStatus');const timer=setInterval(async()=>{count++;if(stEl)stEl.textContent=`轮询...(${count})`;try{const res=await fetch(`${config.baseUrl}/tasks/${taskId}`,{headers:{'Authorization':`Bearer ${config.apiKey}`}});const data=await res.json();if(data.code===200&&data.data){const t=data.data;if(t.status==='completed'){clearInterval(timer);delete pendingTasks[taskId];savePendingTasks();showResult(t,params);saveToHistory(t,params);autoPush();checkPendingTasks();}else if(t.status==='failed'){clearInterval(timer);delete pendingTasks[taskId];savePendingTasks();document.getElementById('resultContent').innerHTML=`<p style="color:#f56565;">❌ ${t.error?.message||'失败'}</p>`;}}}catch(e){}if(count>300){clearInterval(timer);delete pendingTasks[taskId];savePendingTasks();}},3000);}
 
-async function showResult(task, params){
-    const imgs = task.result?.images || [];
-    if(!imgs.length){ document.getElementById('resultContent').innerHTML='<p style="color:#f56565;">❌ 无图片</p>'; return; }
-    let h = '<div style="color:#48bb78;font-weight:700;">✅ 生成成功</div>';
-    for(const img of imgs){
-        const originalUrl = img.url?.[0] || img.url;
-        if(!originalUrl) continue;
-        // 上传到 GitHub 获取永久链接
-        let permanentUrl = originalUrl;
-        if(isSyncEnabled()){
-            try{ permanentUrl = await uploadImageToGitHub(originalUrl, task.id); } catch(e){ console.error('上传失败:',e); }
-        }
-        h += `<img src="${permanentUrl}" class="result-image" onclick="openModal('${permanentUrl}')">
-              <div class="result-actions">
-                  <button class="btn btn-success" onclick="downloadImg('${permanentUrl}')">⬇️ 下载图片</button>
-                  <button class="btn btn-secondary" onclick="openModal('${permanentUrl}')">🔍 查看大图</button>
-                  <button class="btn btn-copy" onclick="copyUrl('${permanentUrl}')">📋 复制链接</button>
-              </div>`;
-    }
-    document.getElementById('resultContent').innerHTML = h;
+async function startGeneration(){
+    if(!config.apiKey){alert('请先配置API Key');return;}
+    const prompt=document.getElementById('promptInput').value.trim();
+    if(!prompt&&!uploadedImages.length){alert('请输入描述');return;}
+    const size=document.getElementById('sizeSelect').value;
+    const resolution=document.getElementById('resolutionSelect').value;
+    const btn=document.getElementById('generateBtn');btn.disabled=true;btn.textContent='提交中...';
+    document.getElementById('genStatus').textContent='提交中...';document.getElementById('resultPlaceholder').style.display='none';
+    const body={model:'gpt-image-2',prompt:prompt||'根据参考图生成',n:1,size,resolution};
+    if(uploadedImages.length)body.image_urls=uploadedImages.map(i=>i.data);
+    const params={prompt:prompt||'根据参考图生成',size,resolution,referenceImages:uploadedImages.map(i=>({data:i.data,name:i.name})),timestamp:Date.now()};
+    try{
+        const res=await fetch(`${config.baseUrl}/images/generations`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${config.apiKey}`},body:JSON.stringify(body)});
+        const data=await res.json();
+        if(data.code===200&&data.data?.[0]?.task_id){
+            const taskId=data.data[0].task_id;
+            document.getElementById('genStatus').textContent='已提交';
+            pendingTasks[taskId]={params,startTime:Date.now(),_resumed:true};
+            savePendingTasks();
+            showLoadingState(Date.now());
+            startPolling(taskId,params);
+        }else{throw new Error(data.message||'失败');}
+    }catch(e){document.getElementById('resultContent').innerHTML=`<p style="color:#f56565;">❌ ${e.message}</p>`;}
+    finally{btn.disabled=false;btn.textContent='🚀 开始生成';}
 }
 
-// ============ 未完成任务 ============
-function loadPendingTasks(){const s=localStorage.getItem(STORAGE_PENDING);if(s)try{pendingTasks=JSON.parse(s);}catch(e){}}
+function showLoadingState(st){document.getElementById('resultContent').innerHTML=`<div class="loading-container"><div class="scroll-bar-track"><div class="scroll-bar-fill"></div></div><div class="elapsed-time">已等待 <span class="elapsed-seconds" id="elapsedSeconds">0</span> 秒</div></div>`;const iv=setInterval(()=>{const el=document.getElementById('elapsedSeconds');if(el)el.textContent=Math.floor((Date.now()-st)/1000);else clearInterval(iv);},1000);}
+
+function startPolling(taskId,params){
+    let count=0;const stEl=document.getElementById('genStatus');
+    const timer=setInterval(async()=>{
+        count++;if(stEl)stEl.textContent=`轮询...(${count})`;
+        try{
+            const res=await fetch(`${config.baseUrl}/tasks/${taskId}`,{headers:{'Authorization':`Bearer ${config.apiKey}`}});
+            const data=await res.json();
+            if(data.code===200&&data.data){
+                const t=data.data;
+                if(t.status==='completed'){
+                    clearInterval(timer);
+                    delete pendingTasks[taskId];
+                    savePendingTasks();
+                    if(stEl)stEl.textContent='✅ 完成';
+                    showResult(t,params);
+                    saveToHistory(t,params);
+                    autoPush();
+                    checkPendingTasks();
+                }else if(t.status==='failed'){
+                    clearInterval(timer);
+                    delete pendingTasks[taskId];
+                    savePendingTasks();
+                    if(stEl)stEl.textContent='';
+                    document.getElementById('resultContent').innerHTML=`<p style="color:#f56565;">❌ ${t.error?.message||'失败'}</p>`;
+                    checkPendingTasks();
+                }
+            }
+        }catch(e){}
+        if(count>300){clearInterval(timer);delete pendingTasks[taskId];savePendingTasks();}
+    },3000);
+}
+
+async function showResult(task,params){
+    const imgs=task.result?.images||[];
+    if(!imgs.length){document.getElementById('resultContent').innerHTML='<p style="color:#f56565;">❌ 无图片</p>';return;}
+    let h='<div style="color:#48bb78;font-weight:700;">✅ 生成成功</div>';
+    for(const img of imgs){
+        const originalUrl=img.url?.[0]||img.url;
+        if(!originalUrl)continue;
+        let permanentUrl=originalUrl;
+        if(isSyncEnabled()){try{permanentUrl=await uploadImageToGitHub(originalUrl,task.id);}catch(e){console.error('上传失败:',e);}}
+        h+=`<img src="${permanentUrl}" class="result-image" onclick="openModal('${permanentUrl}')"><div class="result-actions"><button class="btn btn-success" onclick="downloadImg('${permanentUrl}')">⬇️ 下载图片</button><button class="btn btn-secondary" onclick="openModal('${permanentUrl}')">🔍 查看大图</button><button class="btn btn-copy" onclick="copyUrl('${permanentUrl}')">📋 复制链接</button></div>`;
+    }
+    document.getElementById('resultContent').innerHTML=h;
+}
+
+// ============ 未完成任务（防重复轮询） ============
+function loadPendingTasks(){const s=localStorage.getItem(STORAGE_PENDING);if(s)try{pendingTasks=JSON.parse(s);}catch(e){p {}}
 function savePendingTasks(){const t={};Object.keys(pendingTasks).forEach(k=>{t[k]={params:pendingTasks[k].params,startTime:pendingTasks[k].startTime};});localStorage.setItem(STORAGE_PENDING,JSON.stringify(t));}
-function checkPendingTasks(){const ids=Object.keys(pendingTasks);document.getElementById('resumeBanner').style.display=ids.length?'flex':'none';if(ids.length&&config.apiKey)ids.forEach(id=>{if(!pendingTasks[id]._resumed){pendingTasks[id]._resumed=true;showLoadingState(pendingTasks[id].startTime||Date.now());startPolling(id,pendingTasks[id].params);}});}
+function checkPendingTasks(){
+    const ids=Object.keys(pendingTasks);
+    document.getElementById('resumeBanner').style.display=ids.length?'flex':'none';
+    if(ids.length&&config.apiKey){
+        ids.forEach(id=>{
+            if(pendingTasks[id]._resumed)return;
+            pendingTasks[id]._resumed=true;
+            showLoadingState(pendingTasks[id].startTime||Date.now());
+            startPolling(id,pendingTasks[id].params);
+        });
+    }
+}
 function resumePendingTasks(){Object.keys(pendingTasks).forEach(id=>{pendingTasks[id]._resumed=false;});checkPendingTasks();}
 
 // ============ 聊天 ============
@@ -343,7 +365,7 @@ function addPlaceholder(){const d=document.getElementById('chatMessages');const 
 function toggleSidebar(){const s=document.getElementById('sidebar'),o=document.getElementById('sidebarOverlay');if(s.classList.contains('open')){s.classList.remove('open');o.classList.remove('open');}else{s.classList.add('open');o.classList.add('open');updateSidebarUI();}}
 function closeSidebar(){document.getElementById('sidebar').classList.remove('open');document.getElementById('sidebarOverlay').classList.remove('open');}
 
-// ============ 历史（纯网格 + 云端同步 + 删除时删图片） ============
+// ============ 历史 ============
 function loadHistory(){const s=localStorage.getItem(STORAGE_HISTORY);if(s)try{generationHistory=JSON.parse(s);}catch(e){}}
 function saveHistory(){localStorage.setItem(STORAGE_HISTORY,JSON.stringify(generationHistory));}
 function saveToHistory(task,params){const e={id:task.id,timestamp:params.timestamp,date:new Date(params.timestamp).toLocaleString(),prompt:params.prompt,size:params.size,resolution:params.resolution,actualTime:task.actual_time||0,images:(task.result?.images||[]).map(i=>({url:i.url?.[0]||i.url,expiresAt:i.expires_at}))};generationHistory.unshift(e);if(generationHistory.length>200)generationHistory=generationHistory.slice(0,200);saveHistory();updateHistoryUI();updateHomeStatus();}
@@ -377,21 +399,17 @@ function closeDetailModal(event){if(event&&event.target!==document.getElementByI
 
 async function deleteHistoryItem(i){
     if(!confirm('删除这条记录？云端图片也会同步删除！'))return;
-    const item = generationHistory[i];
-    // 删除 GitHub 上的图片文件
+    const item=generationHistory[i];
     await deleteImageFromGitHub(item.id);
     generationHistory.splice(i,1);
     saveHistory();
     updateHistoryUI();
-    autoPush(); // 同步删除云端记录
+    autoPush();
 }
 
 async function clearHistory(){
     if(!confirm('清空全部历史？云端图片也会全部删除！'))return;
-    // 逐个删除云端图片
-    for(const item of generationHistory){
-        await deleteImageFromGitHub(item.id);
-    }
+    for(const item of generationHistory){await deleteImageFromGitHub(item.id);}
     generationHistory=[];
     saveHistory();
     updateHistoryUI();
