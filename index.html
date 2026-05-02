@@ -176,7 +176,7 @@
                 <div class="action-bar" style="margin-bottom:4px;">
                     <h3 style="color:white;font-size:15px;margin:0;">📋 生成历史</h3>
                     <span style="color:#8b9dc3;font-size:12px;" id="historyCount"></span>
-                    <button class="btn btn-sync" onclick="syncHistoryOnly()" style="margin-left:auto;padding:6px 10px;font-size:11px;">☁️ 同步</button>
+                    <button class="btn btn-sync" id="syncHistoryBtn" onclick="syncHistoryOnly()" style="margin-left:auto;padding:6px 10px;font-size:11px;">☁️ 同步</button>
                     <button class="btn btn-danger" onclick="clearHistory()" style="padding:6px 10px;font-size:11px;">🗑️ 清空</button>
                 </div>
                 <div class="history-grid" id="historyGrid"><div class="history-empty"><div style="font-size:52px;">📭</div><p>暂无生成记录</p></div></div>
@@ -230,10 +230,10 @@ async function downloadFromGitHub(f){if(!isSyncEnabled())return null;try{const r
 function mergeArrays(local,cloud,idF='id'){const ids=new Set(local.map(i=>i[idF]));const news=cloud.filter(i=>!ids.has(i[idF])&&!deletedIds[i[idF]]);const result=[...news,...local].slice(0,200);result.forEach(i=>{if(deletedIds[i[idF]])delete deletedIds[i[idF]];});return result;}
 async function manualSyncAll(){if(!isSyncEnabled()){alert('请先配置GitHub');return;}updateStatus('🔄 同步中...');await pullAllFromCloud();await pushAllToCloud();updateAllUI();updateStatus('✅ 已同步');}
 async function pullAllFromCloud(){const ch=await downloadFromGitHub('history.json');if(ch&&Array.isArray(ch)){generationHistory=mergeArrays(generationHistory,ch,'id');saveHistory();}}
-async function pushAllToCloud(){await uploadToGitHub('history.json',generationHistory);}
-async function syncHistoryOnly(){if(!isSyncEnabled()){alert('请先配置GitHub');return;}const c=await downloadFromGitHub('history.json');if(c&&Array.isArray(c)){generationHistory=mergeArrays(generationHistory,c,'id');saveHistory();}await uploadToGitHub('history.json',generationHistory);updateHistoryUI();updateStatus('✅ 已同步');}
+async function pushAllToCloud(){purgeDeleted();await uploadToGitHub('history.json',generationHistory);}
+async function syncHistoryOnly(){if(!isSyncEnabled()){alert('请先配置GitHub');return;}const btn=document.getElementById('syncHistoryBtn');btn.disabled=true;btn.textContent='⏳ 同步中...';updateStatus('🔄 正在同步...');try{const c=await downloadFromGitHub('history.json');if(c&&Array.isArray(c)){generationHistory=mergeArrays(generationHistory,c,'id');saveHistory();}purgeDeleted();await uploadToGitHub('history.json',generationHistory);updateHistoryUI();updateStatus('✅ 同步完成');btn.textContent='☁️ 已同步';setTimeout(()=>{btn.textContent='☁️ 同步';btn.disabled=false;},1500);}catch(e){updateStatus('❌ 同步失败');btn.textContent='☁️ 重试';btn.disabled=false;}}
 let _autoPushTimer=null;
-function autoPush(){if(!isSyncEnabled())return;clearTimeout(_autoPushTimer);_autoPushTimer=setTimeout(()=>uploadToGitHub('history.json',generationHistory),2000);}
+function autoPush(){if(!isSyncEnabled())return;clearTimeout(_autoPushTimer);_autoPushTimer=setTimeout(()=>{purgeDeleted();uploadToGitHub('history.json',generationHistory);},2000);}
 
 // ============ 图片上传到 GitHub（永久链接） ============
 async function uploadImageToGitHub(imageUrl, taskId){
@@ -423,6 +423,7 @@ function resumePendingTasks(){Object.keys(pendingTasks).forEach(id=>{pendingTask
 function loadHistory(){const s=localStorage.getItem(STORAGE_HISTORY);if(s)try{generationHistory=JSON.parse(s);}catch(e){}}
 function loadDeleted(){const s=localStorage.getItem(STORAGE_DELETED);if(s)try{deletedIds=JSON.parse(s);}catch(e){}}
 function saveDeleted(){const clean={};for(const k in deletedIds){if(Date.now()-deletedIds[k]<30*86400000)clean[k]=deletedIds[k];}deletedIds=clean;localStorage.setItem(STORAGE_DELETED,JSON.stringify(deletedIds));}
+function purgeDeleted(){const before=generationHistory.length;generationHistory=generationHistory.filter(h=>!deletedIds[h.id]);if(generationHistory.length!==before)saveHistory();}
 function saveHistory(){localStorage.setItem(STORAGE_HISTORY,JSON.stringify(generationHistory));}
 function saveToHistory(task,params){
     const e={id:task.id,timestamp:params.timestamp,date:new Date(params.timestamp).toLocaleString(),prompt:params.prompt,size:params.size,resolution:params.resolution,n:params.n||1,actualTime:task.actual_time||0,images:(task.result?.images||[]).map(i=>({url:i.url?.[0]||i.url,expiresAt:i.expires_at}))};
@@ -432,6 +433,7 @@ function saveToHistory(task,params){
 }
 
 function updateHistoryUI(){
+    purgeDeleted();
     const g=document.getElementById('historyGrid');
     const totalItems=generationHistory.length;
     const totalPages=Math.ceil(totalItems/HISTORY_PAGE_SIZE);
@@ -518,6 +520,7 @@ async function deleteHistoryItem(i){
 }
 
 async function clearHistory(){
+    if(!confirm('确定清空全部历史？云端图片也会同步删除！'))return;
     for(const item of generationHistory){await deleteImageFromGitHub(item.id);deletedIds[item.id]=Date.now();}
     saveDeleted();
     generationHistory=[];
