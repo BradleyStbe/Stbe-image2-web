@@ -64,17 +64,17 @@
         @keyframes scrollLoop { 0%{transform:translateX(-100%);} 100%{transform:translateX(350%);} }
         .elapsed-time { color:#a0aec0; font-size:14px; } .elapsed-seconds { color:#667eea; font-size:28px; font-weight:700; }
         .resume-banner { background:rgba(251,191,36,0.12); border:1px solid rgba(251,191,36,0.25); border-radius:12px; padding:10px 14px; margin-bottom:10px; color:#fbbf24; font-size:12px; display:flex; align-items:center; gap:8px; }
-        .history-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
-        @media (max-width:600px) { .history-grid { grid-template-columns:repeat(2,1fr); gap:10px; } }
-        .history-card { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:16px; overflow:hidden; transition:all 0.3s ease; display:flex; flex-direction:column; }
+        .history-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:20px; }
+        @media (max-width:600px) { .history-grid { grid-template-columns:1fr; gap:14px; } }
+        .history-card { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:18px; overflow:hidden; transition:all 0.3s ease; display:flex; flex-direction:column; }
         .history-card:hover { border-color:#667eea; transform:translateY(-4px); box-shadow:0 8px 30px rgba(102,126,234,0.25),0 0 20px rgba(102,126,234,0.1); }
-        .history-card .card-image-wrap { width:100%; aspect-ratio:16/10; background:rgba(0,0,0,0.3); overflow:hidden; }
-        .history-card .card-image { width:100%; height:100%; object-fit:cover; cursor:pointer; transition:transform 0.3s; } .history-card:hover .card-image { transform:scale(1.03); }
-        .history-card .card-body { padding:10px 12px; flex:1; display:flex; flex-direction:column; gap:6px; }
-        .history-card .prompt-text { color:#e2e8f0; font-size:12px; line-height:1.45; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-        .history-card .meta-row { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px; } .history-card .meta-text { color:#8b9dc3; font-size:10px; }
-        .badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; } .badge-ok { background:rgba(72,187,120,0.2); color:#48bb78; } .badge-expired { background:rgba(251,191,36,0.2); color:#fbbf24; } .badge-info { background:rgba(102,126,234,0.2); color:#667eea; }
-        .history-card .action-row { display:flex; gap:4px; flex-wrap:wrap; } .history-card .action-row .btn { padding:5px 8px; font-size:10px; min-height:26px; border-radius:6px; }
+        .history-card .card-image-wrap { width:100%; aspect-ratio:16/10; background:rgba(0,0,0,0.3); overflow:hidden; cursor:pointer; }
+        .history-card .card-image { width:100%; height:100%; object-fit:cover; transition:transform 0.3s; } .history-card:hover .card-image { transform:scale(1.03); }
+        .history-card .card-body { padding:14px 16px; flex:1; display:flex; flex-direction:column; gap:8px; }
+        .history-card .prompt-text { color:#e2e8f0; font-size:14px; line-height:1.5; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+        .history-card .meta-row { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px; } .history-card .meta-text { color:#8b9dc3; font-size:11px; }
+        .badge { display:inline-block; padding:3px 10px; border-radius:10px; font-size:11px; font-weight:700; } .badge-ok { background:rgba(72,187,120,0.2); color:#48bb78; } .badge-expired { background:rgba(251,191,36,0.2); color:#fbbf24; } .badge-info { background:rgba(102,126,234,0.2); color:#667eea; }
+        .history-card .action-row { display:flex; gap:6px; flex-wrap:wrap; } .history-card .action-row .btn { padding:7px 12px; font-size:12px; min-height:30px; border-radius:8px; }
         .history-empty { text-align:center; color:#8b9dc3; padding:40px 16px; grid-column:1/-1; }
         .pagination { display:flex; justify-content:center; align-items:center; gap:6px; margin-top:16px; }
         .pagination .page-btn { width:34px; height:34px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.05); color:#a0aec0; cursor:pointer; font-size:13px; font-weight:600; transition:all 0.2s; display:flex; align-items:center; justify-content:center; }
@@ -137,6 +137,7 @@
                     <div class="options-row">
                         <div class="option-item"><label>图片比例</label><select id="sizeSelect"><option value="auto" selected>自动</option><option value="1:1">1:1</option><option value="16:9">16:9</option><option value="9:16">9:16</option><option value="4:3">4:3</option><option value="3:4">3:4</option><option value="3:2">3:2</option><option value="2:3">2:3</option><option value="5:4">5:4</option><option value="4:5">4:5</option><option value="2:1">2:1</option><option value="1:2">1:2</option><option value="21:9">21:9</option><option value="9:21">9:21</option></select></div>
                         <div class="option-item"><label>分辨率</label><select id="resolutionSelect"><option value="1k" selected>1K</option><option value="2k">2K</option><option value="4k">4K</option></select></div>
+                        <div class="option-item"><label>生成数量</label><select id="numSelect"><option value="1" selected>1张</option><option value="2">2张</option><option value="3">3张</option><option value="4">4张</option></select></div>
                     </div>
                     <div class="upload-area" id="uploadArea">
                         <input type="file" id="imageInput" accept="image/*" multiple style="display:none;">
@@ -235,10 +236,10 @@ async function startGeneration(){
     if(!prompt&&!uploadedImages.length){alert('请输入描述');return;}
     const size=document.getElementById('sizeSelect').value;
     const resolution=document.getElementById('resolutionSelect').value;
-    const n=1;
+    const n=parseInt(document.getElementById('numSelect').value)||1;
     const btn=document.getElementById('generateBtn');btn.disabled=true;btn.textContent='提交中...';
     document.getElementById('genStatus').textContent='提交中...';document.getElementById('resultPlaceholder').style.display='none';
-    const body={model:'gpt-image-2',prompt:prompt||'根据参考图生成',n:1,size,resolution};
+    const body={model:'gpt-image-2',prompt:prompt||'根据参考图生成',n,size,resolution};
     if(uploadedImages.length)body.image_urls=uploadedImages.map(i=>i.data);
     const params={prompt:prompt||'根据参考图生成',size,resolution,n,referenceImages:uploadedImages.map(i=>({data:i.data,name:i.name})),timestamp:Date.now()};
     try{
