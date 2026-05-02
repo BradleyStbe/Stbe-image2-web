@@ -305,6 +305,7 @@ async function showResult(task,params){
         if(!originalUrl)continue;
         let permanentUrl=originalUrl;
         if(isSyncEnabled()){try{permanentUrl=await uploadImageToGitHub(originalUrl,task.id);}catch(e){console.error('上传失败:',e);}}
+        if(img.url)img.url[0]=permanentUrl;
         h+=`<img src="${permanentUrl}" class="result-image" onclick="openModal('${permanentUrl}')"><div class="result-actions"><button class="btn btn-success" onclick="downloadImg('${permanentUrl}')">⬇️ 下载图片</button><button class="btn btn-secondary" onclick="openModal('${permanentUrl}')">🔍 查看大图</button><button class="btn btn-copy" onclick="copyUrl('${permanentUrl}')">📋 复制链接</button></div>`;
     }
     document.getElementById('resultContent').innerHTML=h;
