@@ -74,7 +74,8 @@
         .history-card .prompt-text { color:#e2e8f0; font-size:14px; line-height:1.5; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
         .history-card .meta-row { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px; } .history-card .meta-text { color:#8b9dc3; font-size:11px; }
         .badge { display:inline-block; padding:3px 10px; border-radius:10px; font-size:11px; font-weight:700; } .badge-ok { background:rgba(72,187,120,0.2); color:#48bb78; } .badge-expired { background:rgba(251,191,36,0.2); color:#fbbf24; } .badge-info { background:rgba(102,126,234,0.2); color:#667eea; }
-        .history-card .action-row { display:flex; gap:6px; flex-wrap:wrap; } .history-card .action-row .btn { padding:7px 12px; font-size:12px; min-height:30px; border-radius:8px; }
+        .history-card .action-row { display:flex; justify-content:space-between; align-items:center; gap:5px; } .history-card .action-row .btn { flex:1; min-width:0; height:34px; padding:0; font-size:16px; border-radius:8px; background:rgba(255,255,255,0.06); color:#a0aec0; } .history-card .action-row .btn:active { background:rgba(255,255,255,0.15); transform:scale(0.96); }
+        @media (max-width:600px) { .history-card .action-row .btn { height:30px; font-size:14px; } }
         .history-empty { text-align:center; color:#8b9dc3; padding:40px 16px; grid-column:1/-1; }
         .pagination { display:flex; justify-content:center; align-items:center; gap:6px; margin-top:16px; }
         .pagination .page-btn { width:34px; height:34px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.05); color:#a0aec0; cursor:pointer; font-size:13px; font-weight:600; transition:all 0.2s; display:flex; align-items:center; justify-content:center; }
@@ -359,11 +360,11 @@ function updateHistoryUI(){
                 <div class="meta-row"><span class="meta-text">${e.date}</span></div>
                 <div class="meta-row"><span class="meta-text">${e.size} · ${e.resolution} · ${e.n||1}张 | ${e.actualTime}s</span></div>
                 <div class="action-row">
-                    <button class="btn btn-copy btn-sm" onclick="event.stopPropagation();copyPrompt('${esc(e.prompt).replace(/'/g,"\\'")}',this)">📋 复制</button>
-                    <button class="btn btn-regenerate btn-sm" onclick="event.stopPropagation();regenerateFromHistory(${actualIndex})">🔄 复用</button>
-                    <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();showDetail(${actualIndex})">🔍 详情</button>
-                    ${u?`<button class="btn btn-success btn-sm" onclick="event.stopPropagation();downloadImg('${u}')">⬇️ 下载</button>`:''}
-                    <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteHistoryItem(${actualIndex})">🗑️ 删除</button>
+                    <button class="btn" onclick="event.stopPropagation();copyPrompt('${esc(e.prompt).replace(/'/g,"\\'")}',this)" title="复制">📋</button>
+                    <button class="btn" onclick="event.stopPropagation();regenerateFromHistory(${actualIndex})" title="复用">🔄</button>
+                    <button class="btn" onclick="event.stopPropagation();showDetail(${actualIndex})" title="详情">🔍</button>
+                    ${u?`<button class="btn" onclick="event.stopPropagation();downloadImg('${u}')" title="下载">⬇</button>`:''}
+                    <button class="btn" onclick="event.stopPropagation();deleteHistoryItem(${actualIndex})" title="删除">🗑</button>
                 </div>
             </div>
         </div>`;
