@@ -113,7 +113,7 @@
                 <div class="home-section">
                     <h3>🔑 API 配置</h3>
                     <div class="field"><label>API Key</label><input type="text" id="apiKey" placeholder="sk-..."></div>
-                    <div class="field"><label>API Base URL</label><input type="text" id="apiBaseUrl" placeholder="https://api.apimart.ai/v1"></div>
+                    <div class="field"><label>API Base URL</label><input type="text" id="apiBaseUrl" placeholder="https://dragoncode.codes/gpt-image/v1"></div>
                 </div>
                 <div class="home-section">
                     <h3>☁️ GitHub 同步配置</h3>
@@ -135,7 +135,7 @@
                     <label class="section-label">📝 图像描述</label>
                     <textarea id="promptInput" placeholder="描述你想要的画面...&#10;例如：一只橘猫坐在窗台上看夕阳，水彩画风格"></textarea>
                     <div class="options-row">
-                        <div class="option-item"><label>图片比例</label><select id="sizeSelect"><option value="auto" selected>自动</option><option value="1:1">1:1</option><option value="16:9">16:9</option><option value="9:16">9:16</option><option value="4:3">4:3</option><option value="3:4">3:4</option><option value="3:2">3:2</option><option value="2:3">2:3</option><option value="21:9">21:9</option><option value="9:21">9:21</option></select></div>
+                        <div class="option-item"><label>图片比例</label><select id="sizeSelect"><option value="auto" selected>自动</option><option value="1:1">1:1</option><option value="16:9">16:9</option><option value="9:16">9:16</option><option value="4:3">4:3</option><option value="3:4">3:4</option><option value="3:2">3:2</option><option value="2:3">2:3</option><option value="5:4">5:4</option><option value="4:5">4:5</option><option value="2:1">2:1</option><option value="1:2">1:2</option><option value="21:9">21:9</option><option value="9:21">9:21</option></select></div>
                         <div class="option-item"><label>分辨率</label><select id="resolutionSelect"><option value="1k" selected>1K</option><option value="2k">2K</option><option value="4k">4K</option></select></div>
                         <div class="option-item"><label>生成数量</label><select id="numSelect"><option value="1" selected>1张</option><option value="2">2张</option><option value="3">3张</option><option value="4">4张</option></select></div>
                     </div>
@@ -175,7 +175,7 @@ const STORAGE_HISTORY = 'stbe_history';
 const STORAGE_PENDING = 'stbe_pending';
 const HISTORY_PAGE_SIZE = 12;
 
-let config = { apiKey:'', baseUrl:'https://api.apimart.ai/v1', githubUser:'', githubRepo:'', githubToken:'' };
+let config = { apiKey:'', baseUrl:'https://dragoncode.codes/gpt-image/v1', githubUser:'', githubRepo:'', githubToken:'' };
 let generationHistory = [];
 let uploadedImages = [];
 let pendingTasks = {};
@@ -184,8 +184,8 @@ let currentTab = 'home';
 let historyPage = 1;
 
 function init() { loadConfig(); loadHistory(); loadPendingTasks(); setupUpload(); setupPaste(); updateAllUI(); checkPendingTasks(); if(isSyncEnabled())setTimeout(()=>pullAllFromCloud(),1500); }
-function loadConfig(){const s=localStorage.getItem(STORAGE_CONFIG);if(s)config=JSON.parse(s);document.getElementById('apiKey').value=config.apiKey||'';document.getElementById('apiBaseUrl').value=config.baseUrl||'https://api.apimart.ai/v1';document.getElementById('githubUser').value=config.githubUser||'';document.getElementById('githubRepo').value=config.githubRepo||'';document.getElementById('githubToken').value=config.githubToken||'';}
-function saveAllConfig(){config.apiKey=document.getElementById('apiKey').value.trim();config.baseUrl=document.getElementById('apiBaseUrl').value.trim()||'https://api.apimart.ai/v1';config.githubUser=document.getElementById('githubUser').value.trim();config.githubRepo=document.getElementById('githubRepo').value.trim();config.githubToken=document.getElementById('githubToken').value.trim();localStorage.setItem(STORAGE_CONFIG,JSON.stringify(config));updateHomeStatus();updateStatus('✅ 配置已保存');}
+function loadConfig(){const s=localStorage.getItem(STORAGE_CONFIG);if(s)config=JSON.parse(s);document.getElementById('apiKey').value=config.apiKey||'';document.getElementById('apiBaseUrl').value=config.baseUrl||'https://dragoncode.codes/gpt-image/v1';document.getElementById('githubUser').value=config.githubUser||'';document.getElementById('githubRepo').value=config.githubRepo||'';document.getElementById('githubToken').value=config.githubToken||'';}
+function saveAllConfig(){config.apiKey=document.getElementById('apiKey').value.trim();config.baseUrl=document.getElementById('apiBaseUrl').value.trim()||'https://dragoncode.codes/gpt-image/v1';config.githubUser=document.getElementById('githubUser').value.trim();config.githubRepo=document.getElementById('githubRepo').value.trim();config.githubToken=document.getElementById('githubToken').value.trim();localStorage.setItem(STORAGE_CONFIG,JSON.stringify(config));updateHomeStatus();updateStatus('✅ 配置已保存');}
 function isSyncEnabled(){return !!(config.githubUser&&config.githubRepo&&config.githubToken);}
 function updateStatus(m){document.getElementById('statusBar').textContent=m;setTimeout(()=>{document.getElementById('statusBar').textContent='就绪';},2500);}
 
