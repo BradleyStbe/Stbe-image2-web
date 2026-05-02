@@ -192,17 +192,19 @@ const GITHUB_API = 'https://api.github.com';
 const STORAGE_CONFIG = 'stbe_config';
 const STORAGE_HISTORY = 'stbe_history';
 const STORAGE_PENDING = 'stbe_pending';
+const STORAGE_DELETED = 'stbe_deleted';
 const HISTORY_PAGE_SIZE = 12;
 
 let config = { apiKey:'', baseUrl:'https://dragoncode.codes/gpt-image/v1', githubUser:'', githubRepo:'', githubToken:'' };
 let generationHistory = [];
+let deletedIds = {};
 let uploadedImages = [];
 let pendingTasks = {};
 let pollingTimers = {};
 let currentTab = 'home';
 let historyPage = 1;
 
-function init() { loadConfig(); loadHistory(); loadPendingTasks(); setupUpload(); setupPaste(); updateAllUI(); renderRecent(); if(Object.keys(pendingTasks).length)startRecentTimer(); checkPendingTasks(); if(isSyncEnabled())setTimeout(()=>pullAllFromCloud(),1500); }
+function init() { loadConfig(); loadHistory(); loadDeleted(); loadPendingTasks(); setupUpload(); setupPaste(); updateAllUI(); renderRecent(); if(Object.keys(pendingTasks).length)startRecentTimer(); checkPendingTasks(); if(isSyncEnabled())setTimeout(()=>pullAllFromCloud(),1500); }
 function loadConfig(){const s=localStorage.getItem(STORAGE_CONFIG);if(s)config=JSON.parse(s);document.getElementById('apiKey').value=config.apiKey||'';document.getElementById('apiBaseUrl').value=config.baseUrl||'https://dragoncode.codes/gpt-image/v1';document.getElementById('githubUser').value=config.githubUser||'';document.getElementById('githubRepo').value=config.githubRepo||'';document.getElementById('githubToken').value=config.githubToken||'';}
 function saveAllConfig(){config.apiKey=document.getElementById('apiKey').value.trim();config.baseUrl=document.getElementById('apiBaseUrl').value.trim()||'https://dragoncode.codes/gpt-image/v1';config.githubUser=document.getElementById('githubUser').value.trim();config.githubRepo=document.getElementById('githubRepo').value.trim();config.githubToken=document.getElementById('githubToken').value.trim();localStorage.setItem(STORAGE_CONFIG,JSON.stringify(config));updateHomeStatus();updateStatus('✅ 配置已保存');}
 function isSyncEnabled(){return !!(config.githubUser&&config.githubRepo&&config.githubToken);}
@@ -225,7 +227,7 @@ function getFileUrl(f){return `${GITHUB_API}/repos/${config.githubUser}/${config
 async function getFileSha(f){try{const r=await fetch(getFileUrl(f),{headers:{'Authorization':`token ${config.githubToken}`,'Accept':'application/vnd.github.v3+json'}});if(r.ok){const d=await r.json();return d.sha;}return null;}catch(e){return null;}}
 async function uploadToGitHub(f,data){if(!isSyncEnabled())return;const c=JSON.stringify(data,null,2);const bytes=new TextEncoder().encode(c);const b64=btoa(String.fromCharCode(...bytes));const sha=await getFileSha(f);const body={message:`Update ${f}`,content:b64};if(sha)body.sha=sha;await fetch(getFileUrl(f),{method:'PUT',headers:{'Authorization':`token ${config.githubToken}`,'Content-Type':'application/json','Accept':'application/vnd.github.v3+json'},body:JSON.stringify(body)});}
 async function downloadFromGitHub(f){if(!isSyncEnabled())return null;try{const r=await fetch(getFileUrl(f),{headers:{'Authorization':`token ${config.githubToken}`,'Accept':'application/vnd.github.v3+json'}});if(r.status===404)return null;if(!r.ok)throw new Error('失败');const d=await r.json();const bytes=Uint8Array.from(atob(d.content),c=>c.charCodeAt(0));return JSON.parse(new TextDecoder().decode(bytes));}catch(e){return null;}}
-function mergeArrays(local,cloud,idF='id'){const ids=new Set(local.map(i=>i[idF]));const news=cloud.filter(i=>!ids.has(i[idF]));return[...news,...local].slice(0,200);}
+function mergeArrays(local,cloud,idF='id'){const ids=new Set(local.map(i=>i[idF]));const news=cloud.filter(i=>!ids.has(i[idF])&&!deletedIds[i[idF]]);const result=[...news,...local].slice(0,200);result.forEach(i=>{if(deletedIds[i[idF]])delete deletedIds[i[idF]];});return result;}
 async function manualSyncAll(){if(!isSyncEnabled()){alert('请先配置GitHub');return;}updateStatus('🔄 同步中...');await pullAllFromCloud();await pushAllToCloud();updateAllUI();updateStatus('✅ 已同步');}
 async function pullAllFromCloud(){const ch=await downloadFromGitHub('history.json');if(ch&&Array.isArray(ch)){generationHistory=mergeArrays(generationHistory,ch,'id');saveHistory();}}
 async function pushAllToCloud(){await uploadToGitHub('history.json',generationHistory);}
@@ -419,6 +421,8 @@ function resumePendingTasks(){Object.keys(pendingTasks).forEach(id=>{pendingTask
 
 // ============ 历史 ============
 function loadHistory(){const s=localStorage.getItem(STORAGE_HISTORY);if(s)try{generationHistory=JSON.parse(s);}catch(e){}}
+function loadDeleted(){const s=localStorage.getItem(STORAGE_DELETED);if(s)try{deletedIds=JSON.parse(s);}catch(e){}}
+function saveDeleted(){const clean={};for(const k in deletedIds){if(Date.now()-deletedIds[k]<30*86400000)clean[k]=deletedIds[k];}deletedIds=clean;localStorage.setItem(STORAGE_DELETED,JSON.stringify(deletedIds));}
 function saveHistory(){localStorage.setItem(STORAGE_HISTORY,JSON.stringify(generationHistory));}
 function saveToHistory(task,params){
     const e={id:task.id,timestamp:params.timestamp,date:new Date(params.timestamp).toLocaleString(),prompt:params.prompt,size:params.size,resolution:params.resolution,n:params.n||1,actualTime:task.actual_time||0,images:(task.result?.images||[]).map(i=>({url:i.url?.[0]||i.url,expiresAt:i.expires_at}))};
@@ -503,6 +507,8 @@ function closeDetailModal(event){if(event&&event.target!==document.getElementByI
 async function deleteHistoryItem(i){
     const item=generationHistory[i];
     await deleteImageFromGitHub(item.id);
+    deletedIds[item.id]=Date.now();
+    saveDeleted();
     generationHistory.splice(i,1);
     saveHistory();
     const totalPages=Math.ceil(generationHistory.length/HISTORY_PAGE_SIZE);
@@ -512,7 +518,8 @@ async function deleteHistoryItem(i){
 }
 
 async function clearHistory(){
-    for(const item of generationHistory){await deleteImageFromGitHub(item.id);}
+    for(const item of generationHistory){await deleteImageFromGitHub(item.id);deletedIds[item.id]=Date.now();}
+    saveDeleted();
     generationHistory=[];
     historyPage=1;
     saveHistory();
