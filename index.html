@@ -137,7 +137,6 @@
                     <div class="options-row">
                         <div class="option-item"><label>图片比例</label><select id="sizeSelect"><option value="auto" selected>自动</option><option value="1:1">1:1</option><option value="16:9">16:9</option><option value="9:16">9:16</option><option value="4:3">4:3</option><option value="3:4">3:4</option><option value="3:2">3:2</option><option value="2:3">2:3</option><option value="5:4">5:4</option><option value="4:5">4:5</option><option value="2:1">2:1</option><option value="1:2">1:2</option><option value="21:9">21:9</option><option value="9:21">9:21</option></select></div>
                         <div class="option-item"><label>分辨率</label><select id="resolutionSelect"><option value="1k" selected>1K</option><option value="2k">2K</option><option value="4k">4K</option></select></div>
-                        <div class="option-item"><label>生成数量</label><select id="numSelect"><option value="1" selected>1张</option><option value="2">2张</option><option value="3">3张</option><option value="4">4张</option></select></div>
                     </div>
                     <div class="upload-area" id="uploadArea">
                         <input type="file" id="imageInput" accept="image/*" multiple style="display:none;">
@@ -236,10 +235,10 @@ async function startGeneration(){
     if(!prompt&&!uploadedImages.length){alert('请输入描述');return;}
     const size=document.getElementById('sizeSelect').value;
     const resolution=document.getElementById('resolutionSelect').value;
-    const n=parseInt(document.getElementById('numSelect').value)||1;
+    const n=1;
     const btn=document.getElementById('generateBtn');btn.disabled=true;btn.textContent='提交中...';
     document.getElementById('genStatus').textContent='提交中...';document.getElementById('resultPlaceholder').style.display='none';
-    const body={model:'gpt-image-2',prompt:prompt||'根据参考图生成',n,size,resolution};
+    const body={model:'gpt-image-2',prompt:prompt||'根据参考图生成',n:1,size,resolution};
     if(uploadedImages.length)body.image_urls=uploadedImages.map(i=>i.data);
     const params={prompt:prompt||'根据参考图生成',size,resolution,n,referenceImages:uploadedImages.map(i=>({data:i.data,name:i.name})),timestamp:Date.now()};
     try{
