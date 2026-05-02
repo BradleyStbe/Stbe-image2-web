@@ -528,7 +528,7 @@ async function clearHistory(){
 // ============ 工具 ============
 function openModal(url){document.getElementById('modalImage').src=url;document.getElementById('imageModal').classList.add('active');}
 function closeModal(){document.getElementById('imageModal').classList.remove('active');}
-async function downloadImg(url){try{const r=await fetch(url);const b=await r.blob();const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='img-'+Date.now()+'.png';a.click();URL.revokeObjectURL(u);}catch(e){window.open(url,'_blank');}}
+function downloadImg(url){const a=document.createElement('a');a.href=url;a.download='img-'+Date.now()+'.png';a.target='_blank';a.rel='noopener';document.body.appendChild(a);a.click();setTimeout(()=>document.body.removeChild(a),100);}
 function copyUrl(url){navigator.clipboard.writeText(url).then(()=>updateStatus('📋 已复制')).catch(()=>updateStatus('复制失败'));}
 function esc(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML;}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeDetailModal();}});
