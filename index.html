@@ -182,7 +182,7 @@
             </div>
         </div>
 
-        <div class="status-bar"><span id="statusBar">就绪</span></div>
+        <div class="status-bar"><span id="statusBar">就绪</span><span style="color:#667eea;font-size:10px;" id="versionTag"></span></div>
     </div>
 
 <script>
@@ -192,6 +192,7 @@ const STORAGE_HISTORY = 'stbe_history';
 const STORAGE_PENDING = 'stbe_pending';
 const STORAGE_DELETED = 'stbe_deleted';
 const HISTORY_PAGE_SIZE = 12;
+const VERSION = 'v2.6.0';
 
 let config = { apiKey:'', baseUrl:'https://dragoncode.codes/gpt-image/v1', githubUser:'', githubRepo:'', githubToken:'' };
 let generationHistory = [];
@@ -202,7 +203,7 @@ let pollingTimers = {};
 let currentTab = 'home';
 let historyPage = 1;
 
-function init() { loadConfig(); loadHistory(); loadDeleted(); loadPendingTasks(); setupUpload(); setupPaste(); updateAllUI(); renderRecent(); if(Object.keys(pendingTasks).length)startRecentTimer(); checkPendingTasks(); if(isSyncEnabled())setTimeout(()=>pullAllFromCloud(),1500); }
+function init() { document.getElementById('versionTag').textContent=VERSION; loadConfig(); loadHistory(); loadDeleted(); loadPendingTasks(); setupUpload(); setupPaste(); updateAllUI(); renderRecent(); if(Object.keys(pendingTasks).length)startRecentTimer(); checkPendingTasks(); if(isSyncEnabled())setTimeout(()=>pullAllFromCloud(),1500); }
 function loadConfig(){const s=localStorage.getItem(STORAGE_CONFIG);if(s)config=JSON.parse(s);document.getElementById('apiKey').value=config.apiKey||'';document.getElementById('apiBaseUrl').value=config.baseUrl||'https://dragoncode.codes/gpt-image/v1';document.getElementById('githubUser').value=config.githubUser||'';document.getElementById('githubRepo').value=config.githubRepo||'';document.getElementById('githubToken').value=config.githubToken||'';}
 function saveAllConfig(){config.apiKey=document.getElementById('apiKey').value.trim();config.baseUrl=document.getElementById('apiBaseUrl').value.trim()||'https://dragoncode.codes/gpt-image/v1';config.githubUser=document.getElementById('githubUser').value.trim();config.githubRepo=document.getElementById('githubRepo').value.trim();config.githubToken=document.getElementById('githubToken').value.trim();localStorage.setItem(STORAGE_CONFIG,JSON.stringify(config));updateHomeStatus();updateStatus('✅ 配置已保存');}
 function isSyncEnabled(){return !!(config.githubUser&&config.githubRepo&&config.githubToken);}
@@ -225,7 +226,7 @@ function getFileUrl(f){return `${GITHUB_API}/repos/${config.githubUser}/${config
 async function getFileSha(f){try{const r=await fetch(getFileUrl(f),{headers:{'Authorization':`token ${config.githubToken}`,'Accept':'application/vnd.github.v3+json'}});if(r.ok){const d=await r.json();return d.sha;}return null;}catch(e){return null;}}
 async function uploadToGitHub(f,data){if(!isSyncEnabled())return;const c=JSON.stringify(data,null,2);const bytes=new TextEncoder().encode(c);const b64=btoa(String.fromCharCode(...bytes));const sha=await getFileSha(f);const body={message:`Update ${f}`,content:b64};if(sha)body.sha=sha;await fetch(getFileUrl(f),{method:'PUT',headers:{'Authorization':`token ${config.githubToken}`,'Content-Type':'application/json','Accept':'application/vnd.github.v3+json'},body:JSON.stringify(body)});}
 async function downloadFromGitHub(f){if(!isSyncEnabled())return null;try{const r=await fetch(getFileUrl(f),{headers:{'Authorization':`token ${config.githubToken}`,'Accept':'application/vnd.github.v3+json'}});if(r.status===404)return null;if(!r.ok)throw new Error('失败');const d=await r.json();const bytes=Uint8Array.from(atob(d.content),c=>c.charCodeAt(0));return JSON.parse(new TextDecoder().decode(bytes));}catch(e){return null;}}
-function mergeArrays(local,cloud,idF='id'){const ids=new Set(local.map(i=>i[idF]));const news=cloud.filter(i=>!ids.has(i[idF])&&!deletedIds[i[idF]]);const result=[...news,...local].slice(0,200);result.forEach(i=>{if(deletedIds[i[idF]])delete deletedIds[i[idF]];});return result;}
+function mergeArrays(local,cloud,idF='id'){const ids=new Set(local.map(i=>i[idF]));const news=cloud.filter(i=>!ids.has(i[idF])&&!deletedIds[i[idF]]);const result=[...news,...local].sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,200);result.forEach(i=>{if(deletedIds[i[idF]])delete deletedIds[i[idF]];});return result;}
 async function manualSyncAll(){if(!isSyncEnabled()){alert('请先配置GitHub');return;}updateStatus('🔄 同步中...');await pullAllFromCloud();await pushAllToCloud();updateAllUI();updateStatus('✅ 已同步');}
 async function pullAllFromCloud(){const ch=await downloadFromGitHub('history.json');if(ch&&Array.isArray(ch)){generationHistory=mergeArrays(generationHistory,ch,'id');saveHistory();}}
 async function pushAllToCloud(){purgeDeleted();await uploadToGitHub('history.json',generationHistory);}
@@ -528,7 +529,7 @@ async function clearHistory(){
 // ============ 工具 ============
 function openModal(url){document.getElementById('modalImage').src=url;document.getElementById('imageModal').classList.add('active');}
 function closeModal(){document.getElementById('imageModal').classList.remove('active');}
-function downloadImg(url){const a=document.createElement('a');a.href=url;a.download='img-'+Date.now()+'.png';a.target='_blank';a.rel='noopener';document.body.appendChild(a);a.click();setTimeout(()=>document.body.removeChild(a),100);}
+async function downloadImg(url){try{const r=await fetch(url);const b=await r.blob();const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='img-'+Date.now()+'.png';document.body.appendChild(a);a.click();setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(u);},1000);}catch(e){window.open(url,'_blank');}}
 function copyUrl(url){navigator.clipboard.writeText(url).then(()=>updateStatus('📋 已复制')).catch(()=>updateStatus('复制失败'));}
 function esc(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML;}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeDetailModal();}});
