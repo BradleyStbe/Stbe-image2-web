@@ -333,7 +333,7 @@ async function showResult(task,params){
 }
 
 // ============ 未完成任务（防重复轮询） ============
-function loadPendingTasks(){const s=localStorage.getItem(STORAGE_PENDING);if(s)try{pendingTasks=JSON.parse(s);}catch(e){p {}}
+function loadPendingTasks(){const s=localStorage.getItem(STORAGE_PENDING);if(s)try{pendingTasks=JSON.parse(s);}catch(e){}}
 function savePendingTasks(){const t={};Object.keys(pendingTasks).forEach(k=>{t[k]={params:pendingTasks[k].params,startTime:pendingTasks[k].startTime};});localStorage.setItem(STORAGE_PENDING,JSON.stringify(t));}
 function checkPendingTasks(){
     const ids=Object.keys(pendingTasks);
