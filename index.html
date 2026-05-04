@@ -120,14 +120,14 @@
         <div class="header">
             <div class="header-logo">STBE</div>
             <div class="tab-buttons">
-                <button class="tab-btn active" onclick="switchTab('home')">🏠 首页</button>
-                <button class="tab-btn" onclick="switchTab('generate')">🖼️ 生图</button>
+                <button class="tab-btn" onclick="switchTab('home')">🏠 首页</button>
+                <button class="tab-btn active" onclick="switchTab('generate')">🖼️ 生图</button>
                 <button class="tab-btn" onclick="switchTab('history')">📋 历史</button>
             </div>
         </div>
 
         <div class="main-area" id="mainArea">
-            <div class="page active" id="homePage">
+            <div class="page" id="homePage">
                 <div class="home-section">
                     <h3>🔑 API 配置</h3>
                     <div class="field"><label>API Key</label><input type="text" id="apiKey" placeholder="sk-..."></div>
@@ -147,7 +147,7 @@
                 <div class="home-section"><h3>📊 数据状态</h3><p style="color:#8b9dc3;font-size:13px;">生图历史记录：<span id="homeHistoryCount">0</span> 条</p></div>
             </div>
 
-            <div class="page" id="generatePage">
+            <div class="page active" id="generatePage">
                 <div class="prompt-section">
                     <label class="section-label">📝 图像描述</label>
                     <textarea id="promptInput" placeholder="描述你想要的画面...&#10;例如：一只橘猫坐在窗台上看夕阳，水彩画风格"></textarea>
@@ -203,7 +203,7 @@ let pollingTimers = {};
 let currentTab = 'home';
 let historyPage = 1;
 
-function init() { document.getElementById('versionTag').textContent=VERSION; loadConfig(); loadHistory(); loadDeleted(); loadPendingTasks(); setupUpload(); setupPaste(); updateAllUI(); renderRecent(); if(Object.keys(pendingTasks).length)startRecentTimer(); checkPendingTasks(); if(isSyncEnabled())setTimeout(()=>pullAllFromCloud(),1500); }
+function init() { document.getElementById('versionTag').textContent=VERSION; loadConfig(); loadHistory(); loadDeleted(); loadPendingTasks(); setupUpload(); setupPaste(); switchTab('generate'); updateAllUI(); renderRecent(); if(Object.keys(pendingTasks).length)startRecentTimer(); checkPendingTasks(); if(isSyncEnabled())setTimeout(()=>pullAllFromCloud(),1500); }
 function loadConfig(){const s=localStorage.getItem(STORAGE_CONFIG);if(s)config=JSON.parse(s);document.getElementById('apiKey').value=config.apiKey||'';document.getElementById('apiBaseUrl').value=config.baseUrl||'https://dragoncode.codes/gpt-image/v1';document.getElementById('githubUser').value=config.githubUser||'';document.getElementById('githubRepo').value=config.githubRepo||'';document.getElementById('githubToken').value=config.githubToken||'';}
 function saveAllConfig(){config.apiKey=document.getElementById('apiKey').value.trim();config.baseUrl=document.getElementById('apiBaseUrl').value.trim()||'https://dragoncode.codes/gpt-image/v1';config.githubUser=document.getElementById('githubUser').value.trim();config.githubRepo=document.getElementById('githubRepo').value.trim();config.githubToken=document.getElementById('githubToken').value.trim();localStorage.setItem(STORAGE_CONFIG,JSON.stringify(config));updateHomeStatus();updateStatus('✅ 配置已保存');}
 function isSyncEnabled(){return !!(config.githubUser&&config.githubRepo&&config.githubToken);}
@@ -454,7 +454,7 @@ function updateHistoryUI(){
                     <button class="btn" onclick="event.stopPropagation();copyPrompt('${esc(e.prompt).replace(/'/g,"\\'")}',this)" title="复制">📋</button>
                     <button class="btn" onclick="event.stopPropagation();regenerateFromHistory(${actualIndex})" title="复用">🔄</button>
                     <button class="btn" onclick="event.stopPropagation();showDetail(${actualIndex})" title="详情">🔍</button>
-                    ${u?`<button class="btn" onclick="event.stopPropagation();downloadImg('${u}')" title="下载">⬇</button>`:''}
+                    ${u?`<button class="btn" onclick="event.stopPropagation();downloadImg('${u}','${esc(e.prompt).replace(/'/g,"\\'")}')" title="下载">⬇</button>`:''}
                     <button class="btn" onclick="event.stopPropagation();deleteHistoryItem(${actualIndex})" title="删除">🗑</button>
                 </div>
             </div>
@@ -499,7 +499,7 @@ function regenerateFromHistory(i){
 }
 
 function copyPrompt(text,btn){navigator.clipboard.writeText(text).then(()=>{btn.textContent='✅';btn.classList.add('copied');setTimeout(()=>{btn.textContent='📋 复制';btn.classList.remove('copied');},2000);}).catch(()=>{const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);btn.textContent='✅';btn.classList.add('copied');setTimeout(()=>{btn.textContent='📋 复制';btn.classList.remove('copied');},2000);});}
-function showDetail(i){const e=generationHistory[i];if(!e)return;const u=e.images[0]?.url;const refs=e.referenceImages||[];document.getElementById('detailPanel').innerHTML=`<h3>📋 生成详情<button class="btn btn-secondary" onclick="closeDetailModal()" style="font-size:11px;padding:6px 12px;">关闭</button></h3><div class="detail-section"><div class="detail-label">提示词</div><div class="detail-prompt-box">${esc(e.prompt)}<button class="btn btn-copy" style="position:absolute;top:8px;right:8px;padding:4px 8px;font-size:10px;" onclick="copyPrompt('${esc(e.prompt).replace(/'/g,"\\'")}',this)">📋 复制</button></div></div>${refs.length?`<div class="detail-section"><div class="detail-label">参考图片 (${refs.length}张)</div><div class="detail-images-scroll">${refs.map(r=>`<img src="${r.data}" class="detail-ref-img" onclick="openModal('${r.data}')">`).join('')}</div></div>`:''}<div class="detail-section"><div class="detail-label">生成结果</div>${u?`<img src="${u}" style="width:100%;border-radius:10px;cursor:pointer;" onclick="openModal('${u}')"><div class="result-actions" style="margin-top:8px;"><button class="btn btn-success" onclick="downloadImg('${u}')">⬇️ 下载图片</button><button class="btn btn-copy" onclick="copyUrl('${u}')">📋 复制链接</button></div>`:'<p style="color:#8b9dc3;">无图片</p>'}</div><div class="detail-section"><div class="detail-label">参数信息</div><div class="detail-meta-grid"><div class="meta-item"><div class="meta-label">任务ID</div><div class="meta-value" style="font-size:10px;">${e.id}</div></div><div class="meta-item"><div class="meta-label">生成时间</div><div class="meta-value">${e.date}</div></div><div class="meta-item"><div class="meta-label">图片比例</div><div class="meta-value">${e.size}</div></div><div class="meta-item"><div class="meta-label">分辨率</div><div class="meta-value">${e.resolution.toUpperCase()}</div></div><div class="meta-item"><div class="meta-label">生成数量</div><div class="meta-value">${e.n||1}张</div></div><div class="meta-item"><div class="meta-label">实际耗时</div><div class="meta-value">${e.actualTime}s</div></div><div class="meta-item"><div class="meta-label">参考图数量</div><div class="meta-value">${refs.length}张</div></div></div></div>`;document.getElementById('detailModal').classList.add('active');}
+function showDetail(i){const e=generationHistory[i];if(!e)return;const u=e.images[0]?.url;const refs=e.referenceImages||[];document.getElementById('detailPanel').innerHTML=`<h3>📋 生成详情<button class="btn btn-secondary" onclick="closeDetailModal()" style="font-size:11px;padding:6px 12px;">关闭</button></h3><div class="detail-section"><div class="detail-label">提示词</div><div class="detail-prompt-box">${esc(e.prompt)}<button class="btn btn-copy" style="position:absolute;top:8px;right:8px;padding:4px 8px;font-size:10px;" onclick="copyPrompt('${esc(e.prompt).replace(/'/g,"\\'")}',this)">📋 复制</button></div></div>${refs.length?`<div class="detail-section"><div class="detail-label">参考图片 (${refs.length}张)</div><div class="detail-images-scroll">${refs.map(r=>`<img src="${r.data}" class="detail-ref-img" onclick="openModal('${r.data}')">`).join('')}</div></div>`:''}<div class="detail-section"><div class="detail-label">生成结果</div>${u?`<img src="${u}" style="width:100%;border-radius:10px;cursor:pointer;" onclick="openModal('${u}')"><div class="result-actions" style="margin-top:8px;"><button class="btn btn-success" onclick="downloadImg('${u}','${esc(e.prompt).replace(/'/g,"\\'")}')">⬇️ 下载图片</button><button class="btn btn-copy" onclick="copyUrl('${u}')">📋 复制链接</button></div>`:'<p style="color:#8b9dc3;">无图片</p>'}</div><div class="detail-section"><div class="detail-label">参数信息</div><div class="detail-meta-grid"><div class="meta-item"><div class="meta-label">任务ID</div><div class="meta-value" style="font-size:10px;">${e.id}</div></div><div class="meta-item"><div class="meta-label">生成时间</div><div class="meta-value">${e.date}</div></div><div class="meta-item"><div class="meta-label">图片比例</div><div class="meta-value">${e.size}</div></div><div class="meta-item"><div class="meta-label">分辨率</div><div class="meta-value">${e.resolution.toUpperCase()}</div></div><div class="meta-item"><div class="meta-label">生成数量</div><div class="meta-value">${e.n||1}张</div></div><div class="meta-item"><div class="meta-label">实际耗时</div><div class="meta-value">${e.actualTime}s</div></div><div class="meta-item"><div class="meta-label">参考图数量</div><div class="meta-value">${refs.length}张</div></div></div></div>`;document.getElementById('detailModal').classList.add('active');}
 function closeDetailModal(event){if(event&&event.target!==document.getElementById('detailModal'))return;document.getElementById('detailModal').classList.remove('active');}
 
 async function deleteHistoryItem(i){
@@ -529,7 +529,8 @@ async function clearHistory(){
 // ============ 工具 ============
 function openModal(url){document.getElementById('modalImage').src=url;document.getElementById('imageModal').classList.add('active');}
 function closeModal(){document.getElementById('imageModal').classList.remove('active');}
-async function downloadImg(url){try{const r=await fetch(url);const b=await r.blob();const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='img-'+Date.now()+'.png';document.body.appendChild(a);a.click();setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(u);},1000);}catch(e){window.open(url,'_blank');}}
+function summarizePrompt(p){if(!p)return'img';const styleWords=/风格|画风|效果|高清|超清|高质量|4k|8k|cinematic|detailed|high quality|masterpiece|油画|水彩|素描|漫画|写实|风格|极简|复古|现代|暗黑|明亮|柔和|强烈|唯美|梦幻|真实|抽象|手绘|数字艺术|概念艺术|插画|摄影/gi;let s=p.replace(styleWords,'').replace(/[,，。；;、\n]/g,' ').replace(/\s+/g,' ').trim();if(s.length>10){s=s.slice(0,10).replace(/\s\S*$/,'');}return s||'img';}
+async function downloadImg(url,prompt){const name=(prompt?summarizePrompt(prompt):'img')+'-'+new Date().toISOString().slice(0,10);try{const r=await fetch(url);const b=await r.blob();const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=name+'.png';document.body.appendChild(a);a.click();setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(u);},1000);}catch(e){window.open(url,'_blank');}}
 function copyUrl(url){navigator.clipboard.writeText(url).then(()=>updateStatus('📋 已复制')).catch(()=>updateStatus('复制失败'));}
 function esc(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML;}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeDetailModal();}});
