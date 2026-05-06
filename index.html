@@ -236,7 +236,7 @@ const GITHUB_API = 'https://api.github.com';
 const STORAGE_CONFIG = 'stbe_config';
 const STORAGE_PENDING = 'stbe_pending';
 const HISTORY_PAGE_SIZE = 10;
-const VERSION = 'v3.3.0';
+const VERSION = 'v3.3.1';
 
 let config = { apiKey:'', baseUrl:'https://dragoncode.codes/gpt-image/v1', githubUser:'', githubRepo:'', githubToken:'' };
 let generationHistory = [];
@@ -309,14 +309,22 @@ function toggleFavorite(id){
 function toggleFavList(){const d=document.getElementById('favDropdown');d.style.display=d.style.display==='none'?'block':'none';if(d.style.display==='block')renderFavList();}
 function renderFavList(){
     const el=document.getElementById('favList');
-    if(!favorites.length){el.innerHTML='<div class="fav-empty">暂无收藏</div>';document.getElementById('favPickBtn').textContent='⭐ 收藏列表';return;}
-    document.getElementById('favPickBtn').textContent='⭐ 收藏列表 ('+favorites.length+')';
-    el.innerHTML=favorites.map(f=>`<div class="fav-item" onclick="document.getElementById('promptInput').value='${jsEsc(f.prompt)}';document.getElementById('favDropdown').style.display='none';"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">${esc(f.prompt.length>50?f.prompt.slice(0,50)+'…':f.prompt)}</span><span class="fav-del" onclick="event.stopPropagation();toggleFavorite('${jsEsc(f.id)}')">×</span></div>`).join('');
+    if(!favorites.length){el.innerHTML='<div class="fav-empty">暂无收藏</div>';document.getElementById('favPickBtn').textContent='☆ 收藏列表';return;}
+    document.getElementById('favPickBtn').textContent='★ 收藏列表 ('+favorites.length+')';
+    el.innerHTML='';favorites.forEach((f,i)=>{
+        const row=document.createElement('div');row.className='fav-item';
+        const span=document.createElement('span');span.style.cssText='overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;';span.textContent=f.prompt;
+        const del=document.createElement('span');del.className='fav-del';del.textContent='×';
+        del.onclick=function(e){e.stopPropagation();toggleFavorite(f.id);};
+        row.onclick=function(){document.getElementById('promptInput').value=f.prompt;document.getElementById('favDropdown').style.display='none';};
+        row.appendChild(span);row.appendChild(del);
+        el.appendChild(row);
+    });
 }
 function updateFavButtons(){
     document.querySelectorAll('[id^="favBtn-"]').forEach(btn=>{
         const id=btn.id.replace('favBtn-','');
-        btn.textContent=favIds.has(id)?'★':'⭐';
+        btn.textContent=favIds.has(id)?'★':'☆';
     });
 }
 
@@ -602,7 +610,7 @@ function updateHistoryUI(){
                 <div class="meta-row"><span class="meta-text">${e.size} · ${e.resolution} · ${e.n||1}张 | ${e.actualTime}s</span></div>
                 <div class="action-row">
                     <button class="btn" onclick="event.stopPropagation();copyPrompt('${jsEsc(e.prompt)}',this)" title="复制">📋</button>
-                    <button class="btn" onclick="event.stopPropagation();toggleFavorite('${jsEsc(e.id)}')" title="收藏" id="favBtn-${jsEsc(e.id)}">⭐</button>
+                    <button class="btn" onclick="event.stopPropagation();toggleFavorite('${jsEsc(e.id)}')" title="收藏" id="favBtn-${jsEsc(e.id)}">☆</button>
                     <button class="btn" onclick="event.stopPropagation();showDetail(${actualIndex})" title="详情">🔍</button>
                     ${u?`<button class="btn" onclick="event.stopPropagation();downloadImg('${u}')" title="下载">⬇</button>`:''}
                     <button class="btn" onclick="event.stopPropagation();deleteHistoryItem(${actualIndex})" title="删除">🗑</button>
