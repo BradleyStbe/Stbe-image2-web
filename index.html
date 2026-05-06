@@ -110,6 +110,7 @@
         .modal-overlay { display:none; position:fixed; top:0;left:0;right:0;bottom:0; background:rgba(0,0,0,0.92); z-index:150; justify-content:center;align-items:center; padding:16px; } .modal-overlay.active { display:flex; } .modal-overlay img { max-width:95%; max-height:85%; border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,0.8); }
         .status-bar { padding:8px 14px; background:rgba(0,0,0,0.3); color:#8b9dc3; font-size:10px; text-align:center; border-top:1px solid rgba(255,255,255,0.06); flex-shrink:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px; }
         .main-area::-webkit-scrollbar { width:6px; } .main-area::-webkit-scrollbar-track { background:transparent; } .main-area::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.15); border-radius:3px; } .main-area::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,0.25); }
+        .migrate-banner { background:rgba(102,126,234,0.12); border:1px solid rgba(102,126,234,0.25); border-radius:12px; padding:10px 14px; margin-bottom:10px; color:#667eea; font-size:12px; display:flex; align-items:center; gap:8px; }
     </style>
 </head>
 <body>
@@ -134,20 +135,20 @@
                     <div class="field"><label>API Base URL</label><input type="text" id="apiBaseUrl" placeholder="https://dragoncode.codes/gpt-image/v1"></div>
                 </div>
                 <div class="home-section">
-                    <h3>☁️ GitHub 同步配置</h3>
+                    <h3>☁️ GitHub 图片存储</h3>
                     <div class="field"><label>GitHub 用户名</label><input type="text" id="githubUser" placeholder="你的GitHub用户名"></div>
                     <div class="field"><label>仓库名</label><input type="text" id="githubRepo" placeholder="gpt-image-backup"></div>
                     <div class="field"><label>GitHub Token</label><input type="text" id="githubToken" placeholder="ghp_..."></div>
                     <div class="home-status">
                         <button class="btn btn-primary" onclick="saveAllConfig()">💾 保存配置</button>
-                        <button class="btn btn-sync" onclick="manualSyncAll()">🔄 全部同步</button>
                         <span class="sync-badge off" id="homeSyncStatus">未配置同步</span>
                     </div>
                 </div>
-                <div class="home-section"><h3>📊 数据状态</h3><p style="color:#8b9dc3;font-size:13px;">生图历史记录：<span id="homeHistoryCount">0</span> 条</p></div>
+                <div class="home-section"><h3>📊 数据状态</h3><p style="color:#8b9dc3;font-size:13px;">生图历史记录：<span id="homeHistoryCount">0</span> 条 | 云同步：<span id="homeCloudStatus">检查中...</span></p></div>
             </div>
 
             <div class="page" id="generatePage">
+                <div class="migrate-banner" id="migrateBanner" style="display:none;">📦 检测到旧版历史数据 <button class="btn btn-primary" onclick="migrateOldData()" style="padding:5px 10px;font-size:11px;">一键迁移</button></div>
                 <div class="prompt-section">
                     <label class="section-label">📝 图像描述</label>
                     <textarea id="promptInput" placeholder="描述你想要的画面...&#10;例如：一只橘猫坐在窗台上看夕阳，水彩画风格"></textarea>
@@ -174,8 +175,7 @@
                 <div class="action-bar" style="margin-bottom:4px;">
                     <h3 style="color:white;font-size:15px;margin:0;">📋 生成历史</h3>
                     <span style="color:#8b9dc3;font-size:12px;" id="historyCount"></span>
-                    <button class="btn btn-sync" id="syncHistoryBtn" onclick="syncHistoryOnly()" style="margin-left:auto;padding:6px 10px;font-size:11px;">☁️ 同步</button>
-                    <button class="btn btn-danger" onclick="clearHistory()" style="padding:6px 10px;font-size:11px;">🗑️ 清空</button>
+                    <button class="btn btn-danger" onclick="clearHistory()" style="margin-left:auto;padding:6px 10px;font-size:11px;">🗑️ 清空</button>
                 </div>
                 <div class="history-grid" id="historyGrid"><div class="history-empty"><div style="font-size:52px;">📭</div><p>暂无生成记录</p></div></div>
                 <div class="pagination" id="pagination"></div>
@@ -185,64 +185,170 @@
         <div class="status-bar"><span id="statusBar">就绪</span><span style="color:#667eea;font-size:10px;" id="versionTag"></span></div>
     </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+
 <script>
+// ==== Firebase 初始化 ====
+const firebaseConfig = {
+    apiKey: "AIzaSyCr8X1UIOSvNIaRwI9GB6J3WihEgooxsgo",
+    authDomain: "stbe-image2cangku.firebaseapp.com",
+    projectId: "stbe-image2cangku",
+    storageBucket: "stbe-image2cangku.firebasestorage.app",
+    messagingSenderId: "631627984573",
+    appId: "1:631627984573:web:01a3546a053ccc108391d4"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const auth = firebase.auth();
+let fbReady = false;
+auth.signInAnonymously().then(() => { fbReady = true; document.getElementById('homeCloudStatus').textContent = '已连接'; init(); }).catch(e => { fbReady = false; document.getElementById('homeCloudStatus').textContent = '连接失败'; init(); });
+
+// ==== 常量 ====
 const GITHUB_API = 'https://api.github.com';
 const STORAGE_CONFIG = 'stbe_config';
-const STORAGE_HISTORY = 'stbe_history';
 const STORAGE_PENDING = 'stbe_pending';
-const STORAGE_DELETED = 'stbe_deleted';
 const HISTORY_PAGE_SIZE = 12;
-const VERSION = 'v2.6.2';
+const VERSION = 'v3.0.0';
 
 let config = { apiKey:'', baseUrl:'https://dragoncode.codes/gpt-image/v1', githubUser:'', githubRepo:'', githubToken:'' };
 let generationHistory = [];
-let deletedIds = {};
 let uploadedImages = [];
 let pendingTasks = {};
 let pollingTimers = {};
 let currentTab = 'home';
 let historyPage = 1;
+let totalHistoryCount = 0;
 
-function init() { document.getElementById('versionTag').textContent=VERSION; loadConfig(); loadHistory(); loadDeleted(); loadPendingTasks(); setupUpload(); setupPaste(); updateAllUI(); renderRecent(); if(Object.keys(pendingTasks).length)startRecentTimer(); checkPendingTasks(); if(isSyncEnabled())setTimeout(()=>pullAllFromCloud(),1500); }
+// ==== 工具 ====
+function esc(t){const d=document.createElement('div');d.textContent=t||'';return d.innerHTML;}
+function jsEsc(s){return(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
+function updateStatus(m){document.getElementById('statusBar').textContent=m;setTimeout(()=>{document.getElementById('statusBar').textContent='就绪';},2500);}
+
+// ==== 配置 ====
 function loadConfig(){const s=localStorage.getItem(STORAGE_CONFIG);if(s)config=JSON.parse(s);document.getElementById('apiKey').value=config.apiKey||'';document.getElementById('apiBaseUrl').value=config.baseUrl||'https://dragoncode.codes/gpt-image/v1';document.getElementById('githubUser').value=config.githubUser||'';document.getElementById('githubRepo').value=config.githubRepo||'';document.getElementById('githubToken').value=config.githubToken||'';}
 function saveAllConfig(){config.apiKey=document.getElementById('apiKey').value.trim();config.baseUrl=document.getElementById('apiBaseUrl').value.trim()||'https://dragoncode.codes/gpt-image/v1';config.githubUser=document.getElementById('githubUser').value.trim();config.githubRepo=document.getElementById('githubRepo').value.trim();config.githubToken=document.getElementById('githubToken').value.trim();localStorage.setItem(STORAGE_CONFIG,JSON.stringify(config));updateHomeStatus();updateStatus('✅ 配置已保存');}
 function isSyncEnabled(){return !!(config.githubUser&&config.githubRepo&&config.githubToken);}
-function updateStatus(m){document.getElementById('statusBar').textContent=m;setTimeout(()=>{document.getElementById('statusBar').textContent='就绪';},2500);}
 
+// ==== Firestore 历史操作 ====
+async function fsLoadHistory(limit=50){
+    if(!fbReady)return;
+    try{
+        const snap = await db.collection('history').orderBy('timestamp','desc').limit(limit).get();
+        generationHistory = []; snap.forEach(doc => { generationHistory.push(doc.data()); });
+        totalHistoryCount = generationHistory.length;
+    }catch(e){console.error('Firestore读取失败:',e);}
+}
+async function fsSaveHistoryItem(item){
+    if(!fbReady)return;
+    try{await db.collection('history').doc(item.id).set(item);totalHistoryCount++;}catch(e){console.error('Firestore写入失败:',e);}
+}
+async function fsDeleteHistoryItem(id){
+    if(!fbReady)return;
+    try{await db.collection('history').doc(id).delete();totalHistoryCount=Math.max(0,totalHistoryCount-1);}catch(e){console.error('Firestore删除失败:',e);}
+}
+async function fsDeleteAllHistory(){
+    if(!fbReady)return;
+    try{
+        const batch = db.batch();
+        const snap = await db.collection('history').get();
+        snap.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+        totalHistoryCount = 0;
+    }catch(e){console.error('Firestore清空失败:',e);}
+}
+
+// ==== 迁移 ====
+async function migrateOldData(){
+    const btn = document.querySelector('#migrateBanner button');
+    btn.disabled = true; btn.textContent = '迁移中...';
+    const oldHistory = localStorage.getItem('stbe_history');
+    let count = 0;
+    if(oldHistory && fbReady){
+        try{
+            const data = JSON.parse(oldHistory);
+            for(const item of data){
+                await db.collection('history').doc(item.id).set(item);
+                count++;
+            }
+            updateStatus('✅ 迁移' + count + '条记录');
+            document.getElementById('migrateBanner').style.display = 'none';
+        }catch(e){updateStatus('❌ 迁移失败');}
+    }
+    btn.disabled = false; btn.textContent = '一键迁移';
+    refreshFromCloud();
+}
+
+function checkMigration(){
+    try{
+        const old = localStorage.getItem('stbe_history');
+        if(old && JSON.parse(old).length > 0){
+            document.getElementById('migrateBanner').style.display = 'flex';
+        }
+    }catch(e){}
+}
+
+// ==== 云同步 ====
+async function refreshFromCloud(){
+    if(!fbReady)return;
+    updateStatus('🔄 刷新中...');
+    await fsLoadHistory();
+    updateHistoryUI();
+    updateHomeStatus();
+    updateStatus('✅ 已刷新');
+}
+
+// ==== 初始化 ====
+function init(){
+    document.getElementById('versionTag').textContent = VERSION;
+    loadConfig();
+    loadPendingTasks();
+    setupUpload();
+    setupPaste();
+    if(fbReady){
+        fsLoadHistory().then(() => {
+            updateAllUI();
+            renderRecent();
+            if(Object.keys(pendingTasks).length)startRecentTimer();
+            checkPendingTasks();
+            checkMigration();
+        });
+    }else{
+        updateAllUI();
+        renderRecent();
+        if(Object.keys(pendingTasks).length)startRecentTimer();
+        checkPendingTasks();
+    }
+}
+
+// ==== Tab 切换 ====
 function switchTab(tab){
     currentTab=tab;
     ['homePage','generatePage','historyPage'].forEach(id=>document.getElementById(id).classList.toggle('active',id===tab+'Page'));
     document.querySelectorAll('.tab-btn').forEach((btn,i)=>{const tabs=['home','generate','history'];btn.classList.toggle('active',tabs[i]===tab);});
     if(tab==='home')updateHomeStatus();
-    if(tab==='generate')checkPendingTasks();
-    if(tab==='history'){historyPage=1;updateHistoryUI();}
+    if(tab==='generate'){checkPendingTasks();checkMigration();}
+    if(tab==='history'){historyPage=1;refreshFromCloud();}
     document.getElementById('mainArea').scrollTop=0;
 }
 function updateAllUI(){updateHomeStatus();updateHistoryUI();renderRecent();}
-function updateHomeStatus(){document.getElementById('homeSyncStatus').textContent=isSyncEnabled()?'已配置同步 ✓':'未配置同步';document.getElementById('homeSyncStatus').className='sync-badge '+(isSyncEnabled()?'on':'off');document.getElementById('homeHistoryCount').textContent=generationHistory.length;}
+function updateHomeStatus(){
+    document.getElementById('homeSyncStatus').textContent = isSyncEnabled()?'已配置图片存储 ✓':'未配置图片存储';
+    document.getElementById('homeSyncStatus').className = 'sync-badge '+(isSyncEnabled()?'on':'off');
+    document.getElementById('homeHistoryCount').textContent = totalHistoryCount;
+    document.getElementById('homeCloudStatus').textContent = fbReady?'已连接':'连接失败';
+}
 
-// ============ GitHub 同步 ============
+// ==== GitHub 图片操作 ====
 function getFileUrl(f){return `${GITHUB_API}/repos/${config.githubUser}/${config.githubRepo}/contents/${f}`;}
 async function getFileSha(f){try{const r=await fetch(getFileUrl(f),{headers:{'Authorization':`token ${config.githubToken}`,'Accept':'application/vnd.github.v3+json'}});if(r.ok){const d=await r.json();return d.sha;}return null;}catch(e){return null;}}
-async function uploadToGitHub(f,data){if(!isSyncEnabled())return;const c=JSON.stringify(data,null,2);const bytes=new TextEncoder().encode(c);const b64=btoa(String.fromCharCode(...bytes));const sha=await getFileSha(f);const body={message:`Update ${f}`,content:b64};if(sha)body.sha=sha;await fetch(getFileUrl(f),{method:'PUT',headers:{'Authorization':`token ${config.githubToken}`,'Content-Type':'application/json','Accept':'application/vnd.github.v3+json'},body:JSON.stringify(body)});}
-async function downloadFromGitHub(f){if(!isSyncEnabled())return null;try{const r=await fetch(getFileUrl(f),{headers:{'Authorization':`token ${config.githubToken}`,'Accept':'application/vnd.github.v3+json'}});if(r.status===404)return null;if(!r.ok)throw new Error('失败');const d=await r.json();const bytes=Uint8Array.from(atob(d.content),c=>c.charCodeAt(0));return JSON.parse(new TextDecoder().decode(bytes));}catch(e){return null;}}
-function mergeArrays(local,cloud,idF='id'){const ids=new Set(local.map(i=>i[idF]));const news=cloud.filter(i=>!ids.has(i[idF])&&!deletedIds[i[idF]]);const result=[...news,...local].sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,50);result.forEach(i=>{if(deletedIds[i[idF]])delete deletedIds[i[idF]];});return result;}
-async function manualSyncAll(){if(!isSyncEnabled()){alert('请先配置GitHub');return;}updateStatus('🔄 同步中...');await pullAllFromCloud();await pushAllToCloud();updateAllUI();updateStatus('✅ 已同步');}
-async function pullAllFromCloud(){const ch=await downloadFromGitHub('history.json');if(ch&&Array.isArray(ch)){generationHistory=mergeArrays(generationHistory,ch,'id');saveHistory();}}
-async function pushAllToCloud(){purgeDeleted();await uploadToGitHub('history.json',generationHistory);}
-async function syncHistoryOnly(){if(!isSyncEnabled()){alert('请先配置GitHub');return;}const btn=document.getElementById('syncHistoryBtn');btn.disabled=true;btn.textContent='⏳ 同步中...';updateStatus('🔄 正在同步...');try{const c=await downloadFromGitHub('history.json');if(c&&Array.isArray(c)){generationHistory=mergeArrays(generationHistory,c,'id');saveHistory();}purgeDeleted();await uploadToGitHub('history.json',generationHistory);updateHistoryUI();updateStatus('✅ 同步完成');btn.textContent='☁️ 已同步';setTimeout(()=>{btn.textContent='☁️ 同步';btn.disabled=false;},1500);}catch(e){updateStatus('❌ 同步失败');btn.textContent='☁️ 重试';btn.disabled=false;}}
-let _autoPushTimer=null;
-function autoPush(){if(!isSyncEnabled())return;clearTimeout(_autoPushTimer);_autoPushTimer=setTimeout(()=>{purgeDeleted();uploadToGitHub('history.json',generationHistory);},2000);}
-
-// ============ 图片上传到 GitHub（永久链接） ============
 async function uploadImageToGitHub(imageUrl, taskId){
     try{const res=await fetch(imageUrl);const blob=await res.blob();const base64=await new Promise(r=>{const reader=new FileReader();reader.onload=()=>r(reader.result.split(',')[1]);reader.readAsDataURL(blob);});const fn=`images/${taskId}.png`;const sha=await getFileSha(fn);const body={message:`Upload ${taskId}`,content:base64};if(sha)body.sha=sha;await fetch(`${GITHUB_API}/repos/${config.githubUser}/${config.githubRepo}/contents/${fn}`,{method:'PUT',headers:{'Authorization':`token ${config.githubToken}`,'Content-Type':'application/json'},body:JSON.stringify(body)});return `https://raw.githubusercontent.com/${config.githubUser}/${config.githubRepo}/main/${fn}`;}catch(e){console.error('上传失败:',e);return imageUrl;}
 }
-
-// ============ 删除图片文件 ============
 async function deleteImageFromGitHub(taskId){if(!isSyncEnabled())return;try{const fn=`images/${taskId}.png`;const sha=await getFileSha(fn);if(sha){await fetch(`${GITHUB_API}/repos/${config.githubUser}/${config.githubRepo}/contents/${fn}`,{method:'DELETE',headers:{'Authorization':`token ${config.githubToken}`,'Content-Type':'application/json'},body:JSON.stringify({message:`Delete ${taskId}`,sha})});}}catch(e){console.error('删除失败:',e);}}
 
-// ============ 生图 ============
+// ==== 生图 ====
 function setupUpload(){const ua=document.getElementById('uploadArea');const fi=document.getElementById('imageInput');ua.addEventListener('click',(e)=>{if(e.target.closest('.remove-btn'))return;fi.click();});fi.addEventListener('change',()=>{handleFiles(Array.from(fi.files));fi.value='';});ua.addEventListener('dragover',e=>{e.preventDefault();ua.classList.add('drag-over');});ua.addEventListener('dragleave',()=>ua.classList.remove('drag-over'));ua.addEventListener('drop',e=>{e.preventDefault();ua.classList.remove('drag-over');handleFiles(Array.from(e.dataTransfer.files).filter(f=>f.type.startsWith('image/')));});}
 function setupPaste(){document.addEventListener('paste',(e)=>{if(currentTab!=='generate')return;const items=Array.from(e.clipboardData.items).filter(i=>i.type.startsWith('image/'));if(items.length>0){e.preventDefault();handleFiles(items.map(i=>i.getAsFile()));}});}
 function handleFiles(files){const imgs=files.filter(f=>f.type.startsWith('image/'));if(uploadedImages.length+imgs.length>16){alert('最多16张');return;}let ld=0;imgs.forEach(f=>{const r=new FileReader();r.onload=function(e){uploadedImages.push({data:e.target.result,name:f.name});ld++;if(ld===imgs.length)renderPreviews();};r.readAsDataURL(f);});}
@@ -264,7 +370,6 @@ async function startGeneration(){
     if(uploadedImages.length)bodyTemplate.image_urls=uploadedImages.map(i=>i.data);
     const baseParams={prompt,size,resolution,n,referenceImages:uploadedImages.map(i=>({data:i.data,name:i.name})),timestamp:Date.now()};
     try{
-        // 发送 N 次独立请求（API 限制 n=1，自动拆单）
         const taskIds=[];
         for(let i=0;i<n;i++){
             const res=await fetch(`${config.baseUrl}/images/generations`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${config.apiKey}`},body:JSON.stringify(bodyTemplate)});
@@ -283,7 +388,15 @@ async function startGeneration(){
     finally{btn.disabled=false;btn.textContent='🚀 开始生成';}
 }
 
-// ===== 最近生成记录 =====
+function showMultiLoadingState(taskIds,st){
+    const total=taskIds.length;
+    document.getElementById('resultContent').innerHTML=`<div class="loading-container"><div class="scroll-bar-track"><div class="scroll-bar-fill"></div></div><div class="elapsed-time">已等待 <span class="elapsed-seconds" id="elapsedSeconds">0</span> 秒</div><div style="color:#a0aec0;font-size:12px;margin-top:4px;">批量提交 ${total} 个任务</div><div style="color:#667eea;font-size:11px;" id="multiProgress">等待完成...</div></div>`;
+    const iv=setInterval(()=>{const el=document.getElementById('elapsedSeconds');if(el)el.textContent=Math.floor((Date.now()-st)/1000);else clearInterval(iv);},1000);
+}
+
+function showLoadingState(st){renderRecent();startRecentTimer();}
+function showMultiLoadingState(taskIds,st){renderRecent();startRecentTimer();}
+
 let recentRecords=[];
 function renderRecent(){
     const list=[];
@@ -310,8 +423,6 @@ function renderRecent(){
 let _recentTimer=null;
 function startRecentTimer(){if(!_recentTimer)_recentTimer=setInterval(()=>{renderRecent();if(!Object.keys(pendingTasks).length&&!recentRecords.some(r=>r.status==='gen'))stopRecentTimer();},1000);}
 function stopRecentTimer(){if(_recentTimer){clearInterval(_recentTimer);_recentTimer=null;}}
-function showLoadingState(st){renderRecent();startRecentTimer();}
-function showMultiLoadingState(taskIds,st){renderRecent();startRecentTimer();}
 
 function startPolling(taskId,params,batchTaskIds){
     if(pollingTimers[taskId]){clearInterval(pollingTimers[taskId]);}
@@ -329,14 +440,8 @@ function startPolling(taskId,params,batchTaskIds){
                     delete pollingTimers[taskId];
                     delete pendingTasks[taskId];
                     savePendingTasks();
-                    if(isBatch){
-                        await collectBatchResult(t,params,batchTaskIds);
-                    }else{
-                        if(stEl)stEl.textContent='✅ 完成';
-                        await collectSingleResult(t,params);
-                        saveToHistory(t,params);
-                        autoPush();
-                    }
+                    if(isBatch){await collectBatchResult(t,params,batchTaskIds);}
+                    else{if(stEl)stEl.textContent='✅ 完成';await collectSingleResult(t,params);saveToHistory(t,params);}
                     renderRecent();
                     checkPendingTasks();
                 }else if(t.status==='failed'){
@@ -344,7 +449,6 @@ function startPolling(taskId,params,batchTaskIds){
                     delete pollingTimers[taskId];
                     delete pendingTasks[taskId];
                     savePendingTasks();
-                    if(isBatch)updateBatchProgress(batchTaskIds);
                     renderRecent();
                     checkPendingTasks();
                 }
@@ -355,8 +459,7 @@ function startPolling(taskId,params,batchTaskIds){
     pollingTimers[taskId]=timer;
 }
 
-let batchResults={};
-let batchDoneCount=0;
+let batchResults={};let batchDoneCount=0;
 
 async function collectSingleResult(t,params){
     const imgs=t.result?.images||[];
@@ -382,27 +485,12 @@ async function collectBatchResult(t,params,batchTaskIds){
         if(document.getElementById('genStatus'))document.getElementById('genStatus').textContent='✅ 完成';
         batchResults={};batchDoneCount=0;
         renderRecent();
-        autoPush();
     }
 }
 
-function updateBatchProgress(batchTaskIds){ /* old id removed */ }
-
-async function showResult(task,params){
-    const imgs=task.result?.images||[];
-    if(!imgs.length)return;
-    for(const img of imgs){
-        const originalUrl=img.url?.[0]||img.url;
-        if(!originalUrl)continue;
-        let permanentUrl=originalUrl;
-        if(isSyncEnabled()){try{permanentUrl=await uploadImageToGitHub(originalUrl,task.id);}catch(e){console.error('上传失败:',e);}}
-        if(img.url)img.url[0]=permanentUrl;
-    }
-}
-
-// ============ 未完成任务（防重复轮询） ============
+// ==== 未完成任务 ====
 function loadPendingTasks(){const s=localStorage.getItem(STORAGE_PENDING);if(s)try{pendingTasks=JSON.parse(s);}catch(e){}}
-function savePendingTasks(){const t={};Object.keys(pendingTasks).forEach(k=>{const p=pendingTasks[k];const pp={...p.params};if(pp.referenceImages&&pp.referenceImages.length){pp.refCount=pp.referenceImages.length;delete pp.referenceImages;}t[k]={params:pp,startTime:p.startTime};});try{localStorage.setItem(STORAGE_PENDING,JSON.stringify(t));}catch(e){console.error('存储失败:',e);}}
+function savePendingTasks(){const t={};Object.keys(pendingTasks).forEach(k=>{const p=pendingTasks[k];const pp={...p.params};if(pp.referenceImages&&pp.referenceImages.length){pp.refCount=pp.referenceImages.length;delete pp.referenceImages;}t[k]={params:pp,startTime:p.startTime};});try{localStorage.setItem(STORAGE_PENDING,JSON.stringify(t));}catch(e){}}
 function checkPendingTasks(){
     const ids=Object.keys(pendingTasks);
     if(ids.length&&config.apiKey){
@@ -415,32 +503,25 @@ function checkPendingTasks(){
         });
     }
 }
-// ============ 历史 ============
-function loadHistory(){const s=localStorage.getItem(STORAGE_HISTORY);if(s)try{generationHistory=JSON.parse(s);}catch(e){}}
-function loadDeleted(){const s=localStorage.getItem(STORAGE_DELETED);if(s)try{deletedIds=JSON.parse(s);}catch(e){}}
-function saveDeleted(){const clean={};for(const k in deletedIds){if(Date.now()-deletedIds[k]<30*86400000)clean[k]=deletedIds[k];}deletedIds=clean;try{localStorage.setItem(STORAGE_DELETED,JSON.stringify(deletedIds));}catch(e){}}
-function saveHistory(){try{localStorage.setItem(STORAGE_HISTORY,JSON.stringify(generationHistory));}catch(e){}}
-function purgeDeleted(){const before=generationHistory.length;generationHistory=generationHistory.filter(h=>!deletedIds[h.id]);if(generationHistory.length!==before)saveHistory();}
+
+// ==== 历史 ====
 function saveToHistory(task,params){
     const e={id:task.id,timestamp:params.timestamp,date:new Date(params.timestamp).toLocaleString(),prompt:params.prompt,size:params.size,resolution:params.resolution,n:params.n||1,actualTime:task.actual_time||0,images:(task.result?.images||[]).map(i=>({url:i.url?.[0]||i.url,expiresAt:i.expires_at}))};
+    if(fbReady)fsSaveHistoryItem(e);
     generationHistory.unshift(e);
-    if(generationHistory.length>200)generationHistory=generationHistory.slice(0,50);
-    saveHistory();updateHistoryUI();updateHomeStatus();
+    if(generationHistory.length>50)generationHistory=generationHistory.slice(0,50);
+    updateHistoryUI();updateHomeStatus();
 }
 
 function updateHistoryUI(){
-    purgeDeleted();
     const g=document.getElementById('historyGrid');
     const totalItems=generationHistory.length;
     const totalPages=Math.ceil(totalItems/HISTORY_PAGE_SIZE);
     if(historyPage>totalPages)historyPage=Math.max(1,totalPages);
-
     document.getElementById('historyCount').textContent=`共 ${totalItems} 条`;
     if(!totalItems){g.innerHTML='<div class="history-empty"><div style="font-size:52px;">📭</div><p>暂无生成记录</p></div>';document.getElementById('pagination').innerHTML='';return;}
-
     const start=(historyPage-1)*HISTORY_PAGE_SIZE;
     const pageItems=generationHistory.slice(start,start+HISTORY_PAGE_SIZE);
-
     g.innerHTML=pageItems.map((e,i)=>{
         const actualIndex=start+i;
         const u=e.images[0]?.url;
@@ -460,7 +541,6 @@ function updateHistoryUI(){
             </div>
         </div>`;
     }).join('');
-
     renderPagination(totalPages);
 }
 
@@ -498,46 +578,39 @@ function regenerateFromHistory(i){
     updateStatus('📋 已加载历史记录，请补充参考图后重新生成');
 }
 
-function copyPrompt(text,btn){navigator.clipboard.writeText(text).then(()=>{btn.textContent='✅';btn.classList.add('copied');setTimeout(()=>{btn.textContent='📋 复制';btn.classList.remove('copied');},2000);}).catch(()=>{const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);btn.textContent='✅';btn.classList.add('copied');setTimeout(()=>{btn.textContent='📋 复制';btn.classList.remove('copied');},2000);});}
+function copyPrompt(text,btn){navigator.clipboard.writeText(text).then(()=>{btn.textContent='✅';btn.classList.add('copied');setTimeout(()=>{btn.textContent='📋';btn.classList.remove('copied');},2000);}).catch(()=>{const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);btn.textContent='✅';btn.classList.add('copied');setTimeout(()=>{btn.textContent='📋';btn.classList.remove('copied');},2000);});}
+
 function showDetail(i){const e=generationHistory[i];if(!e)return;const u=e.images[0]?.url;const refs=e.referenceImages||[];document.getElementById('detailPanel').innerHTML=`<h3>📋 生成详情<button class="btn btn-secondary" onclick="closeDetailModal()" style="font-size:11px;padding:6px 12px;">关闭</button></h3><div class="detail-section"><div class="detail-label">提示词</div><div class="detail-prompt-box">${esc(e.prompt)}<button class="btn btn-copy" style="position:absolute;top:8px;right:8px;padding:4px 8px;font-size:10px;" onclick="copyPrompt('${jsEsc(e.prompt)}',this)">📋 复制</button></div></div>${refs.length?`<div class="detail-section"><div class="detail-label">参考图片 (${refs.length}张)</div><div class="detail-images-scroll">${refs.map(r=>`<img src="${r.data}" class="detail-ref-img" onclick="openModal('${r.data}')">`).join('')}</div></div>`:''}<div class="detail-section"><div class="detail-label">生成结果</div>${u?`<img src="${u}" style="width:100%;border-radius:10px;cursor:pointer;" onclick="openModal('${u}')"><div class="result-actions" style="margin-top:8px;"><button class="btn btn-success" onclick="downloadImg('${u}')">⬇️ 下载图片</button><button class="btn btn-copy" onclick="copyUrl('${u}')">📋 复制链接</button></div>`:'<p style="color:#8b9dc3;">无图片</p>'}</div><div class="detail-section"><div class="detail-label">参数信息</div><div class="detail-meta-grid"><div class="meta-item"><div class="meta-label">任务ID</div><div class="meta-value" style="font-size:10px;">${e.id}</div></div><div class="meta-item"><div class="meta-label">生成时间</div><div class="meta-value">${e.date}</div></div><div class="meta-item"><div class="meta-label">图片比例</div><div class="meta-value">${e.size}</div></div><div class="meta-item"><div class="meta-label">分辨率</div><div class="meta-value">${e.resolution.toUpperCase()}</div></div><div class="meta-item"><div class="meta-label">生成数量</div><div class="meta-value">${e.n||1}张</div></div><div class="meta-item"><div class="meta-label">实际耗时</div><div class="meta-value">${e.actualTime}s</div></div><div class="meta-item"><div class="meta-label">参考图数量</div><div class="meta-value">${refs.length}张</div></div></div></div>`;document.getElementById('detailModal').classList.add('active');}
 function closeDetailModal(event){if(event&&event.target!==document.getElementById('detailModal'))return;document.getElementById('detailModal').classList.remove('active');}
 
 async function deleteHistoryItem(i){
     const item=generationHistory[i];
     await deleteImageFromGitHub(item.id);
-    deletedIds[item.id]=Date.now();
-    saveDeleted();
+    if(fbReady)await fsDeleteHistoryItem(item.id);
     generationHistory.splice(i,1);
-    saveHistory();
     const totalPages=Math.ceil(generationHistory.length/HISTORY_PAGE_SIZE);
     if(historyPage>totalPages)historyPage=Math.max(1,totalPages);
     updateHistoryUI();
-    autoPush();
 }
 
 async function clearHistory(){
     if(!confirm('确定清空全部历史？云端图片也会同步删除！'))return;
-    for(const item of generationHistory){await deleteImageFromGitHub(item.id);deletedIds[item.id]=Date.now();}
-    saveDeleted();
+    for(const item of generationHistory){await deleteImageFromGitHub(item.id);}
+    if(fbReady)await fsDeleteAllHistory();
     generationHistory=[];
     historyPage=1;
-    saveHistory();
     updateHistoryUI();
-    autoPush();
 }
 
-// ============ 工具 ============
+// ==== 工具 ====
 function openModal(url){document.getElementById('modalImage').src=url;document.getElementById('imageModal').classList.add('active');}
 function closeModal(){document.getElementById('imageModal').classList.remove('active');}
 async function downloadImg(url){try{const r=await fetch(url);const b=await r.blob();const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='img-'+Date.now()+'.png';document.body.appendChild(a);a.click();setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(u);},1000);}catch(e){window.open(url,'_blank');}}
 function copyUrl(url){navigator.clipboard.writeText(url).then(()=>updateStatus('📋 已复制')).catch(()=>updateStatus('复制失败'));}
-function esc(t){const d=document.createElement('div');d.textContent=t||'';return d.innerHTML;}
-function jsEsc(s){return(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
+
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeDetailModal();}});
 document.getElementById('imageModal').addEventListener('click',function(e){if(e.target===this)closeModal();});
 document.getElementById('detailModal').addEventListener('click',function(e){if(e.target===this)closeDetailModal();});
-
-init();
 </script>
 </body>
 </html>
