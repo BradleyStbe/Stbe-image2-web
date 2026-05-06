@@ -272,6 +272,9 @@ async function migrateOldData(){
                 await db.collection('history').doc(item.id).set(item);
                 count++;
             }
+            localStorage.removeItem('stbe_history');
+            localStorage.removeItem('stbe_deleted');
+            localStorage.removeItem('stbe_pending');
             updateStatus('✅ 迁移' + count + '条记录');
             document.getElementById('migrateBanner').style.display = 'none';
         }catch(e){updateStatus('❌ 迁移失败');}
