@@ -228,10 +228,10 @@ auth.signInAnonymously().then(() => { fbReady = true; document.getElementById('h
 const GITHUB_API = 'https://api.github.com';
 const STORAGE_CONFIG = 'stbe_config';
 const STORAGE_PENDING = 'stbe_pending';
-const HISTORY_PAGE_SIZE = 12;
+const HISTORY_PAGE_SIZE = 10;
 const VERSION = 'v3.2.0';
 
-let config = { apiKey:'', baseUrl:'https://dragoncode.codes/gpt-image/v1', githubUser:'', githubRepo:'', githubToken:'' };
+let config = { apiKey:'', baseUrl:'https://api.apimart.ai/v1', githubUser:'', githubRepo:'', githubToken:'' };
 let generationHistory = [];
 let uploadedImages = [];
 let pendingTasks = {};
@@ -251,7 +251,7 @@ function saveAllConfig(){config.apiKey=document.getElementById('apiKey').value.t
 function isSyncEnabled(){return !!(config.githubUser&&config.githubRepo&&config.githubToken);}
 
 // ==== Firestore 历史操作 ====
-async function fsLoadHistory(limit=50){
+async function fsLoadHistory(limit=100){
     if(!fbReady)return;
     try{
         const snap = await db.collection('history').orderBy('timestamp','desc').limit(limit).get();
