@@ -630,6 +630,12 @@ async function clearHistory(){
 let modalGallery = [];
 let modalIdx = 0;
 let modalZoom = 1;
+let modalPanX = 0, modalPanY = 0;
+
+function applyTransform(){
+    document.getElementById('modalImage').style.transform = `scale(${modalZoom}) translate(${modalPanX}px,${modalPanY}px)`;
+}
+function resetTransform(){ modalZoom = 1; modalPanX = 0; modalPanY = 0; applyTransform(); }
 
 function openModal(url){
     modalGallery = generationHistory.reduce((arr, h) => {
@@ -638,55 +644,80 @@ function openModal(url){
     }, []);
     modalIdx = modalGallery.indexOf(url);
     if(modalIdx < 0) modalIdx = 0;
-    modalZoom = 1;
+    resetTransform();
     document.getElementById('modalImage').src = url;
-    document.getElementById('modalImage').style.transform = 'scale(1)';
     document.getElementById('imageModal').classList.add('active');
     updateModalNav();
 }
-function closeModal(){ document.getElementById('imageModal').classList.remove('active'); modalZoom = 1; }
-function modalPrev(){ if(modalIdx > 0){ modalIdx--; modalZoom = 1; document.getElementById('modalImage').src = modalGallery[modalIdx]; document.getElementById('modalImage').style.transform = 'scale(1)'; updateModalNav(); } }
-function modalNext(){ if(modalIdx < modalGallery.length - 1){ modalIdx++; modalZoom = 1; document.getElementById('modalImage').src = modalGallery[modalIdx]; document.getElementById('modalImage').style.transform = 'scale(1)'; updateModalNav(); } }
+function closeModal(){ document.getElementById('imageModal').classList.remove('active'); resetTransform(); }
+function modalPrev(){ if(modalIdx > 0){ modalIdx--; resetTransform(); document.getElementById('modalImage').src = modalGallery[modalIdx]; updateModalNav(); } }
+function modalNext(){ if(modalIdx < modalGallery.length - 1){ modalIdx++; resetTransform(); document.getElementById('modalImage').src = modalGallery[modalIdx]; updateModalNav(); } }
 function updateModalNav(){
     document.getElementById('modalPrev').style.opacity = modalIdx === 0 ? '0.3' : '1';
     document.getElementById('modalNext').style.opacity = modalIdx >= modalGallery.length - 1 ? '0.3' : '1';
     document.getElementById('modalCounter').textContent = modalGallery.length > 1 ? `${modalIdx + 1} / ${modalGallery.length}` : '';
 }
 
-// 缩放：滚轮
+// ==== 拖拽平移 ====
+let _drag = false, _dragX = 0, _dragY = 0;
+
+document.getElementById('modalZoomWrap').addEventListener('mousedown', function(e){
+    if(modalZoom <= 1) return;
+    _drag = true; _dragX = e.clientX - modalPanX; _dragY = e.clientY - modalPanY;
+    e.preventDefault();
+});
+window.addEventListener('mousemove', function(e){
+    if(!_drag) return;
+    modalPanX = e.clientX - _dragX; modalPanY = e.clientY - _dragY;
+    applyTransform();
+});
+window.addEventListener('mouseup', function(){ _drag = false; });
+
+// ==== 滚轮缩放 ====
 document.getElementById('modalZoomWrap').addEventListener('wheel', function(e){
     if(!document.getElementById('imageModal').classList.contains('active')) return;
     e.preventDefault();
+    const prev = modalZoom;
     modalZoom = Math.max(1, Math.min(5, modalZoom + (e.deltaY > 0 ? -0.3 : 0.3)));
-    document.getElementById('modalImage').style.transform = `scale(${modalZoom})`;
+    if(modalZoom <= 1){ modalPanX = 0; modalPanY = 0; }
+    applyTransform();
 }, { passive: false });
 
-// 缩放：双指
-let _mdDist = 0;
+// ==== 触摸：拖拽(单指/双指平移) + 缩放(双指) + 滑动切换 ====
+let _tStart = [], _tPinch = 0, _tPanX = 0, _tPanY = 0, _tCount = 0;
 document.getElementById('modalZoomWrap').addEventListener('touchstart', function(e){
-    if(e.touches.length === 2) _mdDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    _tStart = Array.from(e.touches);
+    _tPinch = _tStart.length === 2 ? Math.hypot(_tStart[0].clientX - _tStart[1].clientX, _tStart[0].clientY - _tStart[1].clientY) : 0;
+    _tPanX = modalPanX; _tPanY = modalPanY;
+    _tCount = e.touches.length;
 }, { passive: false });
 document.getElementById('modalZoomWrap').addEventListener('touchmove', function(e){
-    if(e.touches.length === 2){
-        e.preventDefault();
-        const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-        modalZoom = Math.max(1, Math.min(5, modalZoom + (d - _mdDist) / 200));
-        document.getElementById('modalImage').style.transform = `scale(${modalZoom})`;
-        _mdDist = d;
+    e.preventDefault();
+    const ts = Array.from(e.touches);
+    if(ts.length === 2){
+        const d = Math.hypot(ts[0].clientX - ts[1].clientX, ts[0].clientY - ts[1].clientY);
+        if(_tPinch > 0){ modalZoom = Math.max(1, Math.min(5, modalZoom * (d / _tPinch))); _tPinch = d; }
+        const cx = (ts[0].clientX + ts[1].clientX)/2 - (_tStart[0].clientX + _tStart[1].clientX)/2;
+        const cy = (ts[0].clientY + ts[1].clientY)/2 - (_tStart[0].clientY + _tStart[1].clientY)/2;
+        modalPanX = _tPanX + cx / modalZoom; modalPanY = _tPanY + cy / modalZoom;
+        applyTransform();
+    }else if(ts.length === 1 && modalZoom > 1){
+        modalPanX = _tPanX + (ts[0].clientX - _tStart[0].clientX) / modalZoom;
+        modalPanY = _tPanY + (ts[0].clientY - _tStart[0].clientY) / modalZoom;
+        applyTransform();
     }
 }, { passive: false });
-
-// 滑动切换（仅在 1x 缩放时）
-let _swX = 0;
-document.getElementById('modalZoomWrap').addEventListener('touchstart', function(e){ if(e.touches.length === 1) _swX = e.touches[0].clientX; });
 document.getElementById('modalZoomWrap').addEventListener('touchend', function(e){
-    if(modalZoom > 1.1) return;
-    const diff = _swX - (e.changedTouches[0]?.clientX || _swX);
-    if(Math.abs(diff) > 80){ if(diff > 0) modalNext(); else modalPrev(); }
+    if(_tCount === 1 && modalZoom <= 1 && e.changedTouches.length === 1){
+        const diff = _tStart[0].clientX - e.changedTouches[0].clientX;
+        if(Math.abs(diff) > 80){ if(diff > 0) modalNext(); else modalPrev(); }
+    }
+    if(modalZoom <= 1){ modalPanX = 0; modalPanY = 0; applyTransform(); }
+    _tCount = 0;
 });
 
-// 双击重置
-document.getElementById('modalZoomWrap').addEventListener('dblclick', function(){ modalZoom = 1; document.getElementById('modalImage').style.transform = 'scale(1)'; });
+// ==== 双击重置 ====
+document.getElementById('modalZoomWrap').addEventListener('dblclick', function(){ resetTransform(); });
 
 // 键盘
 document.addEventListener('keydown', function(e){
