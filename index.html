@@ -107,14 +107,35 @@
         .detail-panel .detail-ref-img { width:96px; height:96px; min-width:96px; border-radius:10px; object-fit:cover; cursor:pointer; border:2px solid rgba(255,255,255,0.15); }
         .detail-panel .detail-meta-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
         .detail-panel .meta-item { background:rgba(0,0,0,0.3); border-radius:10px; padding:10px; } .detail-panel .meta-item .meta-label { color:#8b9dc3; font-size:9px; text-transform:uppercase; } .detail-panel .meta-item .meta-value { color:white; font-size:13px; font-weight:600; margin-top:2px; word-break:break-all; }
-        .modal-overlay { display:none; position:fixed; top:0;left:0;right:0;bottom:0; background:rgba(0,0,0,0.92); z-index:150; justify-content:center;align-items:center; padding:16px; } .modal-overlay.active { display:flex; } .modal-overlay img { max-width:95%; max-height:85%; border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,0.8); }
+        .modal-overlay { display:none; position:fixed; top:0;left:0;right:0;bottom:0; background:rgba(0,0,0,0.94); z-index:150; justify-content:center;align-items:center; } .modal-overlay.active { display:flex; }
+        .modal-overlay img { max-width:90vw; max-height:85vh; border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,0.8); transition:transform 0.15s ease; user-select:none; -webkit-user-drag:none; }
+        .modal-zoom-wrap { display:flex; align-items:center; justify-content:center; overflow:hidden; width:100%; height:100%; }
+        .modal-close { position:fixed; top:16px; right:16px; z-index:152; background:rgba(0,0,0,0.6); color:white; border:none; width:40px; height:40px; border-radius:50%; font-size:20px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+        .modal-nav { position:fixed; top:50%; transform:translateY(-50%); z-index:152; background:rgba(0,0,0,0.5); color:white; border:none; width:44px; height:64px; border-radius:12px; font-size:22px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
+        .modal-nav:hover { background:rgba(0,0,0,0.8); }
+        .modal-nav:active { transform:translateY(-50%) scale(0.95); }
+        .modal-prev { left:16px; } .modal-next { right:16px; }
+        .modal-counter { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:152; background:rgba(0,0,0,0.6); color:white; padding:6px 14px; border-radius:14px; font-size:12px; }
+        @media (max-width:600px) {
+            .modal-nav { width:36px; height:48px; font-size:18px; border-radius:10px; }
+            .modal-prev { left:8px; } .modal-next { right:8px; }
+            .modal-close { top:10px; right:10px; width:34px; height:34px; font-size:16px; }
+        }
         .status-bar { padding:8px 14px; background:rgba(0,0,0,0.3); color:#8b9dc3; font-size:10px; text-align:center; border-top:1px solid rgba(255,255,255,0.06); flex-shrink:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px; }
         .main-area::-webkit-scrollbar { width:6px; } .main-area::-webkit-scrollbar-track { background:transparent; } .main-area::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.15); border-radius:3px; } .main-area::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,0.25); }
         .migrate-banner { background:rgba(102,126,234,0.12); border:1px solid rgba(102,126,234,0.25); border-radius:12px; padding:10px 14px; margin-bottom:10px; color:#667eea; font-size:12px; display:flex; align-items:center; gap:8px; }
     </style>
 </head>
 <body>
-    <div class="modal-overlay" id="imageModal" onclick="closeModal()"><img src="" id="modalImage"></div>
+    <div class="modal-overlay" id="imageModal">
+        <button class="modal-close" onclick="closeModal()">✕</button>
+        <button class="modal-nav modal-prev" id="modalPrev" onclick="modalPrev()">◀</button>
+        <button class="modal-nav modal-next" id="modalNext" onclick="modalNext()">▶</button>
+        <div class="modal-zoom-wrap" id="modalZoomWrap">
+            <img src="" id="modalImage" draggable="false">
+        </div>
+        <div class="modal-counter" id="modalCounter"></div>
+    </div>
     <div class="detail-overlay" id="detailModal" onclick="closeDetailModal(event)"><div class="detail-panel" id="detailPanel"></div></div>
 
     <div class="container">
@@ -605,14 +626,81 @@ async function clearHistory(){
     updateHistoryUI();
 }
 
-// ==== 工具 ====
-function openModal(url){document.getElementById('modalImage').src=url;document.getElementById('imageModal').classList.add('active');}
-function closeModal(){document.getElementById('imageModal').classList.remove('active');}
+// ==== 图片查看器（大图弹窗） ====
+let modalGallery = [];
+let modalIdx = 0;
+let modalZoom = 1;
+
+function openModal(url){
+    modalGallery = generationHistory.reduce((arr, h) => {
+        (h.images||[]).forEach(img => { if(img.url) arr.push(img.url); });
+        return arr;
+    }, []);
+    modalIdx = modalGallery.indexOf(url);
+    if(modalIdx < 0) modalIdx = 0;
+    modalZoom = 1;
+    document.getElementById('modalImage').src = url;
+    document.getElementById('modalImage').style.transform = 'scale(1)';
+    document.getElementById('imageModal').classList.add('active');
+    updateModalNav();
+}
+function closeModal(){ document.getElementById('imageModal').classList.remove('active'); modalZoom = 1; }
+function modalPrev(){ if(modalIdx > 0){ modalIdx--; modalZoom = 1; document.getElementById('modalImage').src = modalGallery[modalIdx]; document.getElementById('modalImage').style.transform = 'scale(1)'; updateModalNav(); } }
+function modalNext(){ if(modalIdx < modalGallery.length - 1){ modalIdx++; modalZoom = 1; document.getElementById('modalImage').src = modalGallery[modalIdx]; document.getElementById('modalImage').style.transform = 'scale(1)'; updateModalNav(); } }
+function updateModalNav(){
+    document.getElementById('modalPrev').style.opacity = modalIdx === 0 ? '0.3' : '1';
+    document.getElementById('modalNext').style.opacity = modalIdx >= modalGallery.length - 1 ? '0.3' : '1';
+    document.getElementById('modalCounter').textContent = modalGallery.length > 1 ? `${modalIdx + 1} / ${modalGallery.length}` : '';
+}
+
+// 缩放：滚轮
+document.getElementById('modalZoomWrap').addEventListener('wheel', function(e){
+    if(!document.getElementById('imageModal').classList.contains('active')) return;
+    e.preventDefault();
+    modalZoom = Math.max(1, Math.min(5, modalZoom + (e.deltaY > 0 ? -0.3 : 0.3)));
+    document.getElementById('modalImage').style.transform = `scale(${modalZoom})`;
+}, { passive: false });
+
+// 缩放：双指
+let _mdDist = 0;
+document.getElementById('modalZoomWrap').addEventListener('touchstart', function(e){
+    if(e.touches.length === 2) _mdDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+}, { passive: false });
+document.getElementById('modalZoomWrap').addEventListener('touchmove', function(e){
+    if(e.touches.length === 2){
+        e.preventDefault();
+        const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+        modalZoom = Math.max(1, Math.min(5, modalZoom + (d - _mdDist) / 200));
+        document.getElementById('modalImage').style.transform = `scale(${modalZoom})`;
+        _mdDist = d;
+    }
+}, { passive: false });
+
+// 滑动切换（仅在 1x 缩放时）
+let _swX = 0;
+document.getElementById('modalZoomWrap').addEventListener('touchstart', function(e){ if(e.touches.length === 1) _swX = e.touches[0].clientX; });
+document.getElementById('modalZoomWrap').addEventListener('touchend', function(e){
+    if(modalZoom > 1.1) return;
+    const diff = _swX - (e.changedTouches[0]?.clientX || _swX);
+    if(Math.abs(diff) > 80){ if(diff > 0) modalNext(); else modalPrev(); }
+});
+
+// 双击重置
+document.getElementById('modalZoomWrap').addEventListener('dblclick', function(){ modalZoom = 1; document.getElementById('modalImage').style.transform = 'scale(1)'; });
+
+// 键盘
+document.addEventListener('keydown', function(e){
+    if(!document.getElementById('imageModal').classList.contains('active')){ if(e.key==='Escape'){closeModal();closeDetailModal();} return; }
+    if(e.key==='Escape') closeModal();
+    if(e.key==='ArrowLeft') modalPrev();
+    if(e.key==='ArrowRight') modalNext();
+});
+document.getElementById('imageModal').addEventListener('click', function(e){ if(e.target === this) closeModal(); });
+
+// 图片下载
 async function downloadImg(url){try{const r=await fetch(url);const b=await r.blob();const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='img-'+Date.now()+'.png';document.body.appendChild(a);a.click();setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(u);},1000);}catch(e){window.open(url,'_blank');}}
 function copyUrl(url){navigator.clipboard.writeText(url).then(()=>updateStatus('📋 已复制')).catch(()=>updateStatus('复制失败'));}
 
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeDetailModal();}});
-document.getElementById('imageModal').addEventListener('click',function(e){if(e.target===this)closeModal();});
 document.getElementById('detailModal').addEventListener('click',function(e){if(e.target===this)closeDetailModal();});
 </script>
 </body>
