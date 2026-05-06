@@ -229,9 +229,9 @@ const GITHUB_API = 'https://api.github.com';
 const STORAGE_CONFIG = 'stbe_config';
 const STORAGE_PENDING = 'stbe_pending';
 const HISTORY_PAGE_SIZE = 10;
-const VERSION = 'v3.2.0';
+const VERSION = 'v3.2.1';
 
-let config = { apiKey:'', baseUrl:'https://api.apimart.ai/v1', githubUser:'', githubRepo:'', githubToken:'' };
+let config = { apiKey:'', baseUrl:'https://dragoncode.codes/gpt-image/v1', githubUser:'', githubRepo:'', githubToken:'' };
 let generationHistory = [];
 let uploadedImages = [];
 let pendingTasks = {};
@@ -333,7 +333,19 @@ function updateHomeStatus(){
 function getFileUrl(f){return `${GITHUB_API}/repos/${config.githubUser}/${config.githubRepo}/contents/${f}`;}
 async function getFileSha(f){try{const r=await fetch(getFileUrl(f),{headers:{'Authorization':`token ${config.githubToken}`,'Accept':'application/vnd.github.v3+json'}});if(r.ok){const d=await r.json();return d.sha;}return null;}catch(e){return null;}}
 async function uploadImageToGitHub(imageUrl, taskId){
-    try{const res=await fetch(imageUrl);const blob=await res.blob();const base64=await new Promise(r=>{const reader=new FileReader();reader.onload=()=>r(reader.result.split(',')[1]);reader.readAsDataURL(blob);});const fn=`images/${taskId}.png`;const sha=await getFileSha(fn);const body={message:`Upload ${taskId}`,content:base64};if(sha)body.sha=sha;await fetch(`${GITHUB_API}/repos/${config.githubUser}/${config.githubRepo}/contents/${fn}`,{method:'PUT',headers:{'Authorization':`token ${config.githubToken}`,'Content-Type':'application/json'},body:JSON.stringify(body)});return `https://raw.githubusercontent.com/${config.githubUser}/${config.githubRepo}/main/${fn}`;}catch(e){console.error('上传失败:',e);return imageUrl;}
+    try{
+        const res=await fetch(imageUrl);const blob=await res.blob();const base64=await new Promise(r=>{const reader=new FileReader();reader.onload=()=>r(reader.result.split(',')[1]);reader.readAsDataURL(blob);});
+        const fn=`images/${taskId}.png`;const sha=await getFileSha(fn);const body={message:`Upload ${taskId}`,content:base64};if(sha)body.sha=sha;
+        // 重试 3 次，间隔递增
+        for(let i=0;i<3;i++){
+            try{
+                const r=await fetch(`${GITHUB_API}/repos/${config.githubUser}/${config.githubRepo}/contents/${fn}`,{method:'PUT',headers:{'Authorization':`token ${config.githubToken}`,'Content-Type':'application/json'},body:JSON.stringify(body)});
+                if(r.ok)return `https://raw.githubusercontent.com/${config.githubUser}/${config.githubRepo}/main/${fn}`;
+                if(r.status===429){await new Promise(rs=>setTimeout(rs,(i+1)*2000));continue;}
+                throw new Error(`HTTP ${r.status}`);
+            }catch(e){if(i<2){await new Promise(rs=>setTimeout(rs,(i+1)*2000));}else throw e;}
+        }
+    }catch(e){console.error('上传失败:',e);return imageUrl;}
 }
 async function deleteImageFromGitHub(taskId){if(!isSyncEnabled())return;try{const fn=`images/${taskId}.png`;const sha=await getFileSha(fn);if(sha){await fetch(`${GITHUB_API}/repos/${config.githubUser}/${config.githubRepo}/contents/${fn}`,{method:'DELETE',headers:{'Authorization':`token ${config.githubToken}`,'Content-Type':'application/json'},body:JSON.stringify({message:`Delete ${taskId}`,sha})});}}catch(e){console.error('删除失败:',e);}}
 
@@ -361,6 +373,7 @@ async function startGeneration(){
     try{
         const taskIds=[];
         for(let i=0;i<n;i++){
+            if(i>0)await new Promise(r=>setTimeout(r,3000));
             const res=await fetch(`${config.baseUrl}/images/generations`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${config.apiKey}`},body:JSON.stringify(bodyTemplate)});
             const data=await res.json();
             if(data.code===200&&data.data?.[0]?.task_id){
@@ -522,7 +535,7 @@ function saveToHistory(task,params){
     const e={id:task.id,timestamp:params.timestamp,date:new Date(params.timestamp).toLocaleString(),prompt:params.prompt,size:params.size,resolution:params.resolution,n:params.n||1,actualTime:task.actual_time||0,images:(task.result?.images||[]).map(i=>({url:i.url?.[0]||i.url,expiresAt:i.expires_at}))};
     if(fbReady)fsSaveHistoryItem(e);
     generationHistory.unshift(e);
-    if(generationHistory.length>50)generationHistory=generationHistory.slice(0,50);
+    if(generationHistory.length>100)generationHistory=generationHistory.slice(0,100);
     updateHistoryUI();updateHomeStatus();
 }
 
