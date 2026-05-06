@@ -123,7 +123,6 @@
         }
         .status-bar { padding:8px 14px; background:rgba(0,0,0,0.3); color:#8b9dc3; font-size:10px; text-align:center; border-top:1px solid rgba(255,255,255,0.06); flex-shrink:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px; }
         .main-area::-webkit-scrollbar { width:6px; } .main-area::-webkit-scrollbar-track { background:transparent; } .main-area::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.15); border-radius:3px; } .main-area::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,0.25); }
-        .migrate-banner { background:rgba(102,126,234,0.12); border:1px solid rgba(102,126,234,0.25); border-radius:12px; padding:10px 14px; margin-bottom:10px; color:#667eea; font-size:12px; display:flex; align-items:center; gap:8px; }
     </style>
 </head>
 <body>
@@ -169,7 +168,6 @@
             </div>
 
             <div class="page" id="generatePage">
-                <div class="migrate-banner" id="migrateBanner" style="display:none;">📦 检测到旧版历史数据 <button class="btn btn-primary" onclick="migrateOldData()" style="padding:5px 10px;font-size:11px;">一键迁移</button></div>
                 <div class="prompt-section">
                     <label class="section-label">📝 图像描述</label>
                     <textarea id="promptInput" placeholder="描述你想要的画面...&#10;例如：一只橘猫坐在窗台上看夕阳，水彩画风格"></textarea>
@@ -280,39 +278,6 @@ async function fsDeleteAllHistory(){
     }catch(e){console.error('Firestore清空失败:',e);}
 }
 
-// ==== 迁移 ====
-async function migrateOldData(){
-    const btn = document.querySelector('#migrateBanner button');
-    btn.disabled = true; btn.textContent = '迁移中...';
-    const oldHistory = localStorage.getItem('stbe_history');
-    let count = 0;
-    if(oldHistory && fbReady){
-        try{
-            const data = JSON.parse(oldHistory);
-            for(const item of data){
-                await db.collection('history').doc(item.id).set(item);
-                count++;
-            }
-            localStorage.removeItem('stbe_history');
-            localStorage.removeItem('stbe_deleted');
-            localStorage.removeItem('stbe_pending');
-            updateStatus('✅ 迁移' + count + '条记录');
-            document.getElementById('migrateBanner').style.display = 'none';
-        }catch(e){updateStatus('❌ 迁移失败');}
-    }
-    btn.disabled = false; btn.textContent = '一键迁移';
-    refreshFromCloud();
-}
-
-function checkMigration(){
-    try{
-        const old = localStorage.getItem('stbe_history');
-        if(old && JSON.parse(old).length > 0){
-            document.getElementById('migrateBanner').style.display = 'flex';
-        }
-    }catch(e){}
-}
-
 // ==== 云同步 ====
 async function refreshFromCloud(){
     if(!fbReady)return;
@@ -336,8 +301,7 @@ function init(){
             renderRecent();
             if(Object.keys(pendingTasks).length)startRecentTimer();
             checkPendingTasks();
-            checkMigration();
-        });
+                    });
     }else{
         updateAllUI();
         renderRecent();
