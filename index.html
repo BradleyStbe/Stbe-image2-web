@@ -229,7 +229,7 @@ const GITHUB_API = 'https://api.github.com';
 const STORAGE_CONFIG = 'stbe_config';
 const STORAGE_PENDING = 'stbe_pending';
 const HISTORY_PAGE_SIZE = 12;
-const VERSION = 'v3.0.0';
+const VERSION = 'v3.2.0';
 
 let config = { apiKey:'', baseUrl:'https://dragoncode.codes/gpt-image/v1', githubUser:'', githubRepo:'', githubToken:'' };
 let generationHistory = [];
@@ -297,6 +297,7 @@ function init(){
     setupPaste();
     if(fbReady){
         fsLoadHistory().then(() => {
+            scanGitHubForOrphans();
             updateAllUI();
             renderRecent();
             if(Object.keys(pendingTasks).length)startRecentTimer();
@@ -426,10 +427,10 @@ function startPolling(taskId,params,batchTaskIds){
                 if(t.status==='completed'){
                     clearInterval(timer);
                     delete pollingTimers[taskId];
-                    delete pendingTasks[taskId];
-                    savePendingTasks();
                     if(isBatch){await collectBatchResult(t,params,batchTaskIds);}
                     else{if(stEl)stEl.textContent='✅ 完成';await collectSingleResult(t,params);saveToHistory(t,params);}
+                    delete pendingTasks[taskId];
+                    savePendingTasks();
                     renderRecent();
                     checkPendingTasks();
                 }else if(t.status==='failed'){
@@ -443,8 +444,32 @@ function startPolling(taskId,params,batchTaskIds){
             }
         }catch(e){}
         if(count>300){clearInterval(timer);delete pollingTimers[taskId];delete pendingTasks[taskId];savePendingTasks();}
+        // 每轮都存一次，防止杀进程丢任务
+        if(count%2===0)savePendingTasks();
     },3000);
     pollingTimers[taskId]=timer;
+}
+
+// ==== GitHub 孤儿图片扫描（B方案） ====
+async function scanGitHubForOrphans(){
+    if(!isSyncEnabled()||!fbReady)return;
+    try{
+        const res=await fetch(`${GITHUB_API}/repos/${config.githubUser}/${config.githubRepo}/contents/images`,{headers:{'Authorization':`token ${config.githubToken}`,'Accept':'application/vnd.github.v3+json'}});
+        if(!res.ok)return;
+        const files=await res.json();
+        if(!Array.isArray(files))return;
+        const ghIds=files.map(f=>f.name.replace('.png',''));
+        const snap=await db.collection('history').get();
+        const exist=new Set();snap.forEach(d=>exist.add(d.id));
+        const orphans=ghIds.filter(id=>!exist.has(id));
+        let recovered=0;
+        for(const id of orphans){
+            const url=`https://raw.githubusercontent.com/${config.githubUser}/${config.githubRepo}/main/images/${id}.png`;
+            await db.collection('history').doc(id).set({id,prompt:'(已恢复)',timestamp:Date.now(),date:new Date().toLocaleString(),size:'?',resolution:'?',n:1,actualTime:0,images:[{url,expiresAt:null}]});
+            recovered++;
+        }
+        if(recovered>0){updateStatus('🔄 恢复'+recovered+'条记录');await fsLoadHistory();updateAllUI();}
+    }catch(e){console.error('GitHub扫描失败:',e);}
 }
 
 let batchResults={};let batchDoneCount=0;
