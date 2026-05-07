@@ -122,12 +122,6 @@
             .modal-close { top:10px; right:10px; width:34px; height:34px; font-size:16px; }
         }
         .status-bar { padding:8px 14px; background:rgba(0,0,0,0.3); color:#8b9dc3; font-size:10px; text-align:center; border-top:1px solid rgba(255,255,255,0.06); flex-shrink:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px; }
-        .fav-dropdown { background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.1); border-radius:12px; max-height:200px; overflow-y:auto; margin-top:4px; }
-        .fav-dropdown::-webkit-scrollbar { width:4px; } .fav-dropdown::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.12); border-radius:2px; }
-        .fav-item { padding:10px 12px; color:#e2e8f0; font-size:13px; cursor:pointer; border-bottom:1px solid rgba(255,255,255,0.04); display:flex; justify-content:space-between; align-items:center; }
-        .fav-item:hover { background:rgba(102,126,234,0.15); }
-        .fav-item .fav-del { color:#f56565; cursor:pointer; font-size:14px; padding:0 4px; }
-        .fav-empty { padding:16px; text-align:center; color:#8b9dc3; font-size:12px; }
         .main-area::-webkit-scrollbar { width:6px; } .main-area::-webkit-scrollbar-track { background:transparent; } .main-area::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.15); border-radius:3px; } .main-area::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,0.25); }
     </style>
 </head>
@@ -176,9 +170,8 @@
 
             <div class="page" id="generatePage">
                 <div class="prompt-section">
-                    <div style="display:flex;align-items:center;gap:8px;"><label class="section-label" style="margin-bottom:0;">📝 图像描述</label><button class="btn btn-secondary" id="favPickBtn" onclick="toggleFavList()" style="padding:4px 10px;font-size:11px;min-height:26px;margin-left:auto;">⭐ 收藏列表</button></div>
+                    <label class="section-label">📝 图像描述</label>
                     <textarea id="promptInput" placeholder="描述你想要的画面...&#10;例如：一只橘猫坐在窗台上看夕阳，水彩画风格"></textarea>
-                    <div class="fav-dropdown" id="favDropdown" style="display:none;"><div class="fav-list" id="favList"></div></div>
                     <div class="options-row">
                         <div class="option-item"><label>图片比例</label><select id="sizeSelect"><option value="auto" selected>自动</option><option value="1:1">1:1</option><option value="16:9">16:9</option><option value="9:16">9:16</option><option value="4:3">4:3</option><option value="3:4">3:4</option><option value="3:2">3:2</option><option value="2:3">2:3</option><option value="5:4">5:4</option><option value="4:5">4:5</option><option value="2:1">2:1</option><option value="1:2">1:2</option><option value="21:9">21:9</option><option value="9:21">9:21</option></select></div>
                         <div class="option-item"><label>分辨率</label><select id="resolutionSelect"><option value="1k" selected>1K</option><option value="2k">2K</option><option value="4k">4K</option></select></div>
@@ -247,7 +240,7 @@ const GITHUB_API = 'https://api.github.com';
 const STORAGE_CONFIG = 'stbe_config';
 const STORAGE_PENDING = 'stbe_pending';
 const HISTORY_PAGE_SIZE = 10;
-const VERSION = 'v3.4.0';
+const VERSION = 'v3.4.1';
 
 let config = { apiKey:'', baseUrl:'https://dragoncode.codes/gpt-image/v1', githubUser:'', githubRepo:'', githubToken:'' };
 let generationHistory = [];
@@ -307,31 +300,14 @@ function toggleFavorite(id){
     if(!fbReady)return;
     if(favIds.has(id)){
         db.collection('favorites').doc(id).delete();favIds.delete(id);
-        favorites=favorites.filter(f=>f.id!==id);
     }else{
         const h=generationHistory.find(e=>e.id===id);
         if(!h)return;
         const fav={...h,timestamp:Date.now()};
-        db.collection('favorites').doc(id).set(fav);favIds.add(id);favorites.unshift(fav);
+        db.collection('favorites').doc(id).set(fav);favIds.add(id);
     }
-    renderFavList();
     updateFavButtons();
     if(currentTab==='favorites')updateFavoritesUI();
-}
-function toggleFavList(){const d=document.getElementById('favDropdown');d.style.display=d.style.display==='none'?'block':'none';if(d.style.display==='block')renderFavList();}
-function renderFavList(){
-    const el=document.getElementById('favList');
-    if(!favorites.length){el.innerHTML='<div class="fav-empty">暂无收藏</div>';document.getElementById('favPickBtn').textContent='☆ 收藏列表';return;}
-    document.getElementById('favPickBtn').textContent='★ 收藏列表 ('+favorites.length+')';
-    el.innerHTML='';favorites.forEach((f,i)=>{
-        const row=document.createElement('div');row.className='fav-item';
-        const span=document.createElement('span');span.style.cssText='overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;';span.textContent=f.prompt;
-        const del=document.createElement('span');del.className='fav-del';del.textContent='×';
-        del.onclick=function(e){e.stopPropagation();toggleFavorite(f.id);};
-        row.onclick=function(){document.getElementById('promptInput').value=f.prompt;document.getElementById('favDropdown').style.display='none';};
-        row.appendChild(span);row.appendChild(del);
-        el.appendChild(row);
-    });
 }
 function updateFavButtons(){
     document.querySelectorAll('[id^="favBtn-"]').forEach(btn=>{
@@ -829,7 +805,6 @@ document.getElementById('modalZoomWrap').addEventListener('touchend', function(e
 document.getElementById('modalZoomWrap').addEventListener('dblclick', function(){ resetTransform(); });
 
 // 键盘
-document.addEventListener('click',function(e){const d=document.getElementById('favDropdown');if(d&&!e.target.closest('#favPickBtn')&&!e.target.closest('#favDropdown'))d.style.display='none';});
 document.addEventListener('keydown', function(e){
     if(!document.getElementById('imageModal').classList.contains('active')){ if(e.key==='Escape'){closeModal();closeDetailModal();} return; }
     if(e.key==='Escape') closeModal();
