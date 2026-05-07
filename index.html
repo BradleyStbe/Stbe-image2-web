@@ -150,6 +150,7 @@
                 <button class="tab-btn active" onclick="switchTab('home')">🏠 首页</button>
                 <button class="tab-btn" onclick="switchTab('generate')">🖼️ 生图</button>
                 <button class="tab-btn" onclick="switchTab('history')">📋 历史</button>
+                <button class="tab-btn" onclick="switchTab('favorites')">⭐ 收藏</button>
             </div>
         </div>
 
@@ -176,7 +177,7 @@
             <div class="page" id="generatePage">
                 <div class="prompt-section">
                     <div style="display:flex;align-items:center;gap:8px;"><label class="section-label" style="margin-bottom:0;">📝 图像描述</label><button class="btn btn-secondary" id="favPickBtn" onclick="toggleFavList()" style="padding:4px 10px;font-size:11px;min-height:26px;margin-left:auto;">⭐ 收藏列表</button></div>
-                    <textarea id="promptInput" placeholder=""></textarea>
+                    <textarea id="promptInput" placeholder="描述你想要的画面...&#10;例如：一只橘猫坐在窗台上看夕阳，水彩画风格"></textarea>
                     <div class="fav-dropdown" id="favDropdown" style="display:none;"><div class="fav-list" id="favList"></div></div>
                     <div class="options-row">
                         <div class="option-item"><label>图片比例</label><select id="sizeSelect"><option value="auto" selected>自动</option><option value="1:1">1:1</option><option value="16:9">16:9</option><option value="9:16">9:16</option><option value="4:3">4:3</option><option value="3:4">3:4</option><option value="3:2">3:2</option><option value="2:3">2:3</option><option value="5:4">5:4</option><option value="4:5">4:5</option><option value="2:1">2:1</option><option value="1:2">1:2</option><option value="21:9">21:9</option><option value="9:21">9:21</option></select></div>
@@ -205,6 +206,16 @@
                 </div>
                 <div class="history-grid" id="historyGrid"><div class="history-empty"><div style="font-size:52px;">📭</div><p>暂无生成记录</p></div></div>
                 <div class="pagination" id="pagination"></div>
+            </div>
+
+            <div class="page" id="favoritesPage">
+                <div class="action-bar" style="margin-bottom:4px;">
+                    <h3 style="color:white;font-size:15px;margin:0;">⭐ 收藏列表</h3>
+                    <span style="color:#8b9dc3;font-size:12px;" id="favCount"></span>
+                    <button class="btn btn-danger" onclick="clearFavorites()" style="margin-left:auto;padding:6px 10px;font-size:11px;">🗑️ 清空</button>
+                </div>
+                <div class="history-grid" id="favGrid"><div class="history-empty"><div style="font-size:52px;">⭐</div><p>暂无收藏</p></div></div>
+                <div class="pagination" id="favPagination"></div>
             </div>
         </div>
 
@@ -236,7 +247,7 @@ const GITHUB_API = 'https://api.github.com';
 const STORAGE_CONFIG = 'stbe_config';
 const STORAGE_PENDING = 'stbe_pending';
 const HISTORY_PAGE_SIZE = 10;
-const VERSION = 'v3.3.1';
+const VERSION = 'v3.4.0';
 
 let config = { apiKey:'', baseUrl:'https://dragoncode.codes/gpt-image/v1', githubUser:'', githubRepo:'', githubToken:'' };
 let generationHistory = [];
@@ -300,11 +311,12 @@ function toggleFavorite(id){
     }else{
         const h=generationHistory.find(e=>e.id===id);
         if(!h)return;
-        const fav={id:h.id,prompt:h.prompt,timestamp:Date.now()};
+        const fav={...h,timestamp:Date.now()};
         db.collection('favorites').doc(id).set(fav);favIds.add(id);favorites.unshift(fav);
     }
     renderFavList();
     updateFavButtons();
+    if(currentTab==='favorites')updateFavoritesUI();
 }
 function toggleFavList(){const d=document.getElementById('favDropdown');d.style.display=d.style.display==='none'?'block':'none';if(d.style.display==='block')renderFavList();}
 function renderFavList(){
@@ -327,6 +339,62 @@ function updateFavButtons(){
         btn.textContent=favIds.has(id)?'★':'☆';
     });
 }
+
+// ==== 收藏界面 ====
+let favItems = [];
+let favPage = 1;
+async function refreshFavorites(){
+    if(!fbReady)return;
+    try{
+        const snap=await db.collection('favorites').orderBy('timestamp','desc').get();
+        favItems=[];snap.forEach(d=>favItems.push(d.data()));
+        updateFavoritesUI();
+    }catch(e){}
+}
+function updateFavoritesUI(){
+    const g=document.getElementById('favGrid');
+    const totalItems=favItems.length;
+    const totalPages=Math.ceil(totalItems/HISTORY_PAGE_SIZE);
+    if(favPage>totalPages)favPage=Math.max(1,totalPages);
+    document.getElementById('favCount').textContent=`共 ${totalItems} 条`;
+    if(!totalItems){g.innerHTML='<div class="history-empty"><div style="font-size:52px;">⭐</div><p>暂无收藏</p></div>';document.getElementById('favPagination').innerHTML='';return;}
+    const start=(favPage-1)*HISTORY_PAGE_SIZE;
+    const items=favItems.slice(start,start+HISTORY_PAGE_SIZE);
+    g.innerHTML=items.map((e,i)=>{
+        const u=e.images?.[0]?.url;
+        return `<div class="history-card">
+            <div class="card-image-wrap">${u?`<img src="${u}" class="card-image" onclick="openModal('${u}')">`:'<div style="height:100%;display:flex;align-items:center;justify-content:center;color:#555;">无图片</div>'}</div>
+            <div class="card-body">
+                <div class="prompt-text">${esc(e.prompt)}</div>
+                <div class="meta-row"><span class="meta-text">${e.date||''}</span></div>
+                <div class="meta-row"><span class="meta-text">${e.size||'?'} · ${e.resolution||'?'} · ${e.n||1}张 | ${e.actualTime||0}s</span></div>
+                <div class="action-row">
+                    <button class="btn" onclick="event.stopPropagation();copyPrompt('${jsEsc(e.prompt)}',this)" title="复制">📋</button>
+                    <button class="btn" onclick="event.stopPropagation();toggleFavorite('${jsEsc(e.id)}')" title="取消收藏" id="favBtn-${jsEsc(e.id)}">★</button>
+                    <button class="btn" onclick="event.stopPropagation();showFavDetail(${start+i})" title="详情">🔍</button>
+                    ${u?`<button class="btn" onclick="event.stopPropagation();downloadImg('${u}')" title="下载">⬇</button>`:''}
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+    // pagination
+    const p=document.getElementById('favPagination');
+    if(totalPages<=1){p.innerHTML='';return;}
+    let h='<button class="page-btn" onclick="goToFavPage('+(favPage-1)+')" '+(favPage<=1?'disabled':'')+'>◀</button>';
+    for(let i=1;i<=totalPages;i++){
+        if(totalPages<=7||i===1||i===totalPages||Math.abs(i-favPage)<=1){
+            h+=`<button class="page-btn ${i===favPage?'active':''}" onclick="goToFavPage(${i})">${i}</button>`;
+        }else if(i===2&&favPage>4){h+='<span style="color:#8b9dc3;">…</span>';}
+        else if(i===totalPages-1&&favPage<totalPages-3){h+='<span style="color:#8b9dc3;">…</span>';}
+    }
+    h+='<button class="page-btn" onclick="goToFavPage('+(favPage+1)+')" '+(favPage>=totalPages?'disabled':'')+'>▶</button>';
+    p.innerHTML=h;
+    updateFavButtons();
+}
+function goToFavPage(page){favPage=Math.max(1,Math.min(page,Math.ceil(favItems.length/HISTORY_PAGE_SIZE)));updateFavoritesUI();document.getElementById('mainArea').scrollTop=0;}
+async function deleteFavItem(i){const item=favItems[i];if(item){await db.collection('favorites').doc(item.id).delete();favIds.delete(item.id);favItems.splice(i,1);favPage=Math.min(favPage,Math.max(1,Math.ceil(favItems.length/HISTORY_PAGE_SIZE)));updateFavoritesUI();}}
+async function clearFavorites(){if(!confirm('确定清空全部收藏？'))return;const batch=db.batch();const snap=await db.collection('favorites').get();snap.forEach(d=>batch.delete(d.ref));await batch.commit();favItems=[];favIds.clear();updateFavoritesUI();updateFavButtons();}
+function showFavDetail(i){const e=favItems[i];if(!e)return;const u=e.images?.[0]?.url;document.getElementById('detailPanel').innerHTML=`<h3>⭐ 收藏详情<button class="btn btn-secondary" onclick="closeDetailModal()" style="font-size:11px;padding:6px 12px;">关闭</button></h3><div class="detail-section"><div class="detail-label">提示词</div><div class="detail-prompt-box">${esc(e.prompt)}<button class="btn btn-copy" style="position:absolute;top:8px;right:8px;padding:4px 8px;font-size:10px;" onclick="copyPrompt('${jsEsc(e.prompt)}',this)">📋 复制</button></div></div>${u?`<div class="detail-section"><div class="detail-label">生成结果</div><img src="${u}" style="width:100%;border-radius:10px;cursor:pointer;" onclick="openModal('${u}')"><div class="result-actions" style="margin-top:8px;"><button class="btn btn-success" onclick="downloadImg('${u}')">⬇️ 下载图片</button><button class="btn btn-copy" onclick="copyUrl('${u}')">📋 复制链接</button></div></div>`:'<p style="color:#8b9dc3;">无图片</p>'}</div><div class="detail-section"><div class="detail-label">参数信息</div><div class="detail-meta-grid"><div class="meta-item"><div class="meta-label">任务ID</div><div class="meta-value" style="font-size:10px;">${e.id}</div></div><div class="meta-item"><div class="meta-label">生成时间</div><div class="meta-value">${e.date||''}</div></div><div class="meta-item"><div class="meta-label">图片比例</div><div class="meta-value">${e.size||'?'}</div></div><div class="meta-item"><div class="meta-label">分辨率</div><div class="meta-value">${(e.resolution||'?').toUpperCase()}</div></div></div></div>`;document.getElementById('detailModal').classList.add('active');}
 
 // ==== 云同步 ====
 async function refreshFromCloud(){
@@ -365,11 +433,12 @@ function init(){
 // ==== Tab 切换 ====
 function switchTab(tab){
     currentTab=tab;
-    ['homePage','generatePage','historyPage'].forEach(id=>document.getElementById(id).classList.toggle('active',id===tab+'Page'));
-    document.querySelectorAll('.tab-btn').forEach((btn,i)=>{const tabs=['home','generate','history'];btn.classList.toggle('active',tabs[i]===tab);});
+    ['homePage','generatePage','historyPage','favoritesPage'].forEach(id=>document.getElementById(id).classList.toggle('active',id===tab+'Page'));
+    document.querySelectorAll('.tab-btn').forEach((btn,i)=>{const tabs=['home','generate','history','favorites'];btn.classList.toggle('active',tabs[i]===tab);});
     if(tab==='home')updateHomeStatus();
-    if(tab==='generate'){checkPendingTasks();checkMigration();}
+    if(tab==='generate'){checkPendingTasks();}
     if(tab==='history'){historyPage=1;refreshFromCloud();}
+    if(tab==='favorites'){favPage=1;refreshFavorites();}
     document.getElementById('mainArea').scrollTop=0;
 }
 function updateAllUI(){updateHomeStatus();updateHistoryUI();renderRecent();}
