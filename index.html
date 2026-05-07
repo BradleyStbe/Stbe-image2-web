@@ -102,7 +102,7 @@
         .detail-overlay { display:none; position:fixed; top:0;left:0;right:0;bottom:0; background:rgba(0,0,0,0.88); z-index:151; padding:12px; padding-top:max(12px,var(--safe-top)); overflow-y:auto; } .detail-overlay.active { display:block; }
         .detail-panel { background:#1a1a2e; border:1px solid rgba(255,255,255,0.15); border-radius:18px; padding:16px; max-width:600px; margin:0 auto; } .detail-panel h3 { color:white; font-size:16px; margin-bottom:14px; display:flex; justify-content:space-between; }
         .detail-panel .detail-section { margin-bottom:16px; } .detail-panel .detail-label { color:#8b9dc3; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; }
-        .detail-panel .detail-prompt-box { background:rgba(0,0,0,0.4); border-radius:10px; padding:12px; color:#e2e8f0; font-size:13px; position:relative; }
+        .detail-panel .detail-prompt-box { background:rgba(0,0,0,0.4); border-radius:10px; padding:12px; color:#e2e8f0; font-size:13px; position:relative; -webkit-user-select:text; user-select:text; }
         .detail-panel .detail-images-scroll { display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; }
         .detail-panel .detail-ref-img { width:96px; height:96px; min-width:96px; border-radius:10px; object-fit:cover; cursor:pointer; border:2px solid rgba(255,255,255,0.15); }
         .detail-panel .detail-meta-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
@@ -240,7 +240,7 @@ const GITHUB_API = 'https://api.github.com';
 const STORAGE_CONFIG = 'stbe_config';
 const STORAGE_PENDING = 'stbe_pending';
 const HISTORY_PAGE_SIZE = 10;
-const VERSION = 'v3.4.2';
+const VERSION = 'v3.4.4';
 
 let config = { apiKey:'', baseUrl:'https://dragoncode.codes/gpt-image/v1', githubUser:'', githubRepo:'', githubToken:'' };
 let generationHistory = [];
@@ -345,7 +345,7 @@ function updateFavoritesUI(){
                 <div class="meta-row"><span class="meta-text">${e.date||''}</span></div>
                 <div class="meta-row"><span class="meta-text">${e.size||'?'} · ${e.resolution||'?'} · ${e.n||1}张 | ${e.actualTime||0}s</span></div>
                 <div class="action-row">
-                    <button class="btn" onclick="event.stopPropagation();copyPrompt('${jsEsc(e.prompt)}',this)" title="复制">📋</button>
+                    <button class="btn" data-prompt="${esc(e.prompt)}" onclick="event.stopPropagation();copyPrompt(null,this)" title="复制">📋</button>
                     <button class="btn" onclick="event.stopPropagation();toggleFavorite('${jsEsc(e.id)}')" title="取消收藏" id="favBtn-${jsEsc(e.id)}">★</button>
                     <button class="btn" onclick="event.stopPropagation();showFavDetail(${start+i})" title="详情">🔍</button>
                     ${u?`<button class="btn" onclick="event.stopPropagation();downloadImg('${u}')" title="下载">⬇</button>`:''}
@@ -654,7 +654,7 @@ function updateHistoryUI(){
                 <div class="meta-row"><span class="meta-text">${e.date}</span></div>
                 <div class="meta-row"><span class="meta-text">${e.size} · ${e.resolution} · ${e.n||1}张 | ${e.actualTime}s</span></div>
                 <div class="action-row">
-                    <button class="btn" onclick="event.stopPropagation();copyPrompt('${jsEsc(e.prompt)}',this)" title="复制">📋</button>
+                    <button class="btn" data-prompt="${esc(e.prompt)}" onclick="event.stopPropagation();copyPrompt(null,this)" title="复制">📋</button>
                     <button class="btn" onclick="event.stopPropagation();toggleFavorite('${jsEsc(e.id)}')" title="收藏" id="favBtn-${jsEsc(e.id)}">☆</button>
                     <button class="btn" onclick="event.stopPropagation();showDetail(${actualIndex})" title="详情">🔍</button>
                     ${u?`<button class="btn" onclick="event.stopPropagation();downloadImg('${u}')" title="下载">⬇</button>`:''}
@@ -687,7 +687,7 @@ function goToPage(page){
     document.getElementById('mainArea').scrollTop=0;
 }
 
-function copyPrompt(text,btn){navigator.clipboard.writeText(text).then(()=>{btn.textContent='✅';btn.classList.add('copied');setTimeout(()=>{btn.textContent='📋';btn.classList.remove('copied');},2000);}).catch(()=>{const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);btn.textContent='✅';btn.classList.add('copied');setTimeout(()=>{btn.textContent='📋';btn.classList.remove('copied');},2000);});}
+function copyPrompt(text,btn){if(!text&&btn){text=btn.getAttribute('data-prompt');if(!text)return;}navigator.clipboard.writeText(text).then(()=>{btn.textContent='✅';btn.classList.add('copied');setTimeout(()=>{btn.textContent='📋';btn.classList.remove('copied');},2000);}).catch(()=>{const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);btn.textContent='✅';btn.classList.add('copied');setTimeout(()=>{btn.textContent='📋';btn.classList.remove('copied');},2000);});}
 
 function showDetail(i){const e=generationHistory[i];if(!e)return;const u=e.images[0]?.url;const refs=e.referenceImages||[];document.getElementById('detailPanel').innerHTML=`<h3>📋 生成详情<button class="btn btn-secondary" onclick="closeDetailModal()" style="font-size:11px;padding:6px 12px;">关闭</button></h3><div class="detail-section"><div class="detail-label">提示词</div><div class="detail-prompt-box">${esc(e.prompt)}<button class="btn btn-copy" style="position:absolute;top:8px;right:8px;padding:4px 8px;font-size:10px;" onclick="copyPrompt('${jsEsc(e.prompt)}',this)">📋 复制</button></div></div>${refs.length?`<div class="detail-section"><div class="detail-label">参考图片 (${refs.length}张)</div><div class="detail-images-scroll">${refs.map(r=>`<img src="${r.data}" class="detail-ref-img" onclick="openModal('${r.data}')">`).join('')}</div></div>`:''}<div class="detail-section"><div class="detail-label">生成结果</div>${u?`<img src="${u}" style="width:100%;border-radius:10px;cursor:pointer;" onclick="openModal('${u}')"><div class="result-actions" style="margin-top:8px;"><button class="btn btn-success" onclick="downloadImg('${u}')">⬇️ 下载图片</button><button class="btn btn-copy" onclick="copyUrl('${u}')">📋 复制链接</button></div>`:'<p style="color:#8b9dc3;">无图片</p>'}</div><div class="detail-section"><div class="detail-label">参数信息</div><div class="detail-meta-grid"><div class="meta-item"><div class="meta-label">任务ID</div><div class="meta-value" style="font-size:10px;">${e.id}</div></div><div class="meta-item"><div class="meta-label">生成时间</div><div class="meta-value">${e.date}</div></div><div class="meta-item"><div class="meta-label">图片比例</div><div class="meta-value">${e.size}</div></div><div class="meta-item"><div class="meta-label">分辨率</div><div class="meta-value">${e.resolution.toUpperCase()}</div></div><div class="meta-item"><div class="meta-label">生成数量</div><div class="meta-value">${e.n||1}张</div></div><div class="meta-item"><div class="meta-label">实际耗时</div><div class="meta-value">${e.actualTime}s</div></div><div class="meta-item"><div class="meta-label">参考图数量</div><div class="meta-value">${refs.length}张</div></div></div></div>`;document.getElementById('detailModal').classList.add('active');}
 function closeDetailModal(event){if(event&&event.target!==document.getElementById('detailModal'))return;document.getElementById('detailModal').classList.remove('active');}
